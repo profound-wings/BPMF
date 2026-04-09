@@ -1,0 +1,564 @@
+/* 全頁背景為 Solarized Dark 深色 */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #002b36;
+  color: #839496;
+}
+
+/* App container */
+.App {
+  margin-top: 50px;
+  font-size: 52px;
+  color: #839496; /* Solarized 文字色 */
+  padding: 20px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 標題 */
+.title {
+  font-size: 48px;
+  color: #268bd2;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+/* 開始畫面 */
+.start-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 故事按鈕容器 */
+.story-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.story-button {
+  font-size: 18px;
+  padding: 8px 16px;
+}
+
+.story-button:hover {
+  background-color: #094959;
+  border-color: #268bd2;
+}
+
+/* 開始按鈕 */
+.start-button {
+  font-size: 28px;
+  padding: 12px 32px;
+  background-color: #268bd2;
+  border-color: #268bd2;
+  color: #fdf6e3;
+  transition: all 0.2s ease;
+}
+
+.start-button:hover:not(:disabled) {
+  background-color: #2aa198;
+  border-color: #2aa198;
+}
+
+.start-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 遊戲畫面 */
+.game-screen {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 遊戲標題列 */
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.score-display {
+  font-size: 20px;
+  color: #2aa198;
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.progress-display {
+  font-size: 20px;
+  color: #6c71c4;
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.hint-count-display {
+  font-size: 20px;
+  color: #cb4b16;
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.restart-button {
+  font-size: 18px;
+  padding: 8px 16px;
+  background-color: #dc322f;
+  border-color: #dc322f;
+}
+
+.restart-button:hover {
+  background-color: #cb4b16;
+  border-color: #cb4b16;
+}
+
+/* 進度條 */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #073642;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #268bd2, #2aa198);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* 已完成文字區域 - 顯示所有已進行過的文字 */
+.completed-text-area {
+  white-space: pre-wrap;
+  margin-bottom: 20px;
+  color: #839496;
+  font-family: 'Bpmf Zihi Sans', sans-serif;
+  line-height: 1.8;
+  font-size: 48px;
+  padding: 20px;
+  background-color: #073642;
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.completed-text {
+  color: #93a1a1;
+}
+
+/* 高亮文字 */
+.highlight {
+  font-family: 'Bpmf Zihi Only', sans-serif;
+  color: #b58900;
+  font-weight: bold;
+  border: 2px solid #b58900;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.highlight.correct {
+  color: #859900;
+  border-color: #859900;
+  background-color: rgba(133, 153, 0, 0.2);
+}
+
+.highlight.wrong {
+  color: #dc322f;
+  border-color: #dc322f;
+  background-color: rgba(220, 50, 47, 0.2);
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* 選擇區塊 - 更大更明顯 */
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 20px;
+  justify-content: center;
+  padding: 20px;
+  background-color: rgba(7, 54, 66, 0.5);
+  border-radius: 8px;
+}
+
+/* 提示區塊 */
+.hint-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60px;
+  margin-bottom: 15px;
+}
+
+/* 顯示提示按鈕 */
+.show-hint-button {
+  font-size: 24px;
+  padding: 12px 24px;
+  background-color: #b58900;
+  border-color: #b58900;
+  color: #fdf6e3;
+  transition: all 0.2s ease;
+}
+
+.show-hint-button:hover {
+  background-color: #cb4b16;
+  border-color: #cb4b16;
+  transform: scale(1.05);
+}
+
+/* 亂序字元區塊 */
+.scrambledWords {
+  display: flex;
+  flex-wrap: wrap;
+  color: #839496;
+  font-family: 'Bpmf Zihi Sans', sans-serif;
+  letter-spacing: 4px;
+  font-size: 36px;
+  justify-content: center;
+}
+
+/* 每個字按鈕 - 使用普通字體顯示漢字 */
+.word {
+  cursor: pointer;
+  background-color: #073642;
+  color: #eee8d5;
+  padding: 16px 28px;
+  border-radius: 8px;
+  user-select: none;
+  transition: all 0.2s ease;
+  border: 3px solid #586e75;
+  font-size: 48px;
+  font-family: 'Noto Sans', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  min-width: 100px;
+  text-align: center;
+}
+
+.word:hover {
+  background-color: #094959;
+  border-color: #268bd2;
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(38, 139, 210, 0.3);
+}
+
+.word:focus {
+  outline: none;
+  border-color: #268bd2;
+  box-shadow: 0 0 0 3px rgba(38, 139, 210, 0.3);
+}
+
+.word:active {
+  transform: scale(0.98);
+}
+
+.word.correct {
+  background-color: #859900;
+  border-color: #859900;
+  animation: pulse 0.3s ease;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* 提示文字 */
+.hint {
+  font-size: 16px;
+  color: #586e75;
+  font-family: 'Noto Sans', sans-serif;
+  margin-top: 10px;
+}
+
+/* 完成畫面 */
+.complete-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+}
+
+.complete-screen h2 {
+  font-size: 48px;
+  color: #859900;
+  margin-bottom: 30px;
+}
+
+.final-score {
+  font-size: 28px;
+  color: #2aa198;
+  text-align: center;
+  margin-bottom: 30px;
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.final-score p {
+  margin: 10px 0;
+}
+
+/* 答錯的字區塊 */
+.wrong-chars-section,
+.hint-chars-section {
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.wrong-chars-section h3,
+.hint-chars-section h3 {
+  font-size: 24px;
+  margin-bottom: 15px;
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.wrong-chars-section h3 {
+  color: #dc322f;
+}
+
+.hint-chars-section h3 {
+  color: #b58900;
+}
+
+/* 字元列表 */
+.char-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 15px;
+  background-color: #073642;
+  border-radius: 8px;
+}
+
+/* 單個字元項目 */
+.char-item {
+  font-size: 36px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-family: 'Bpmf Zihi Sans', sans-serif;
+}
+
+.char-item.wrong {
+  background-color: rgba(220, 50, 47, 0.2);
+  border: 2px solid #dc322f;
+  color: #dc322f;
+}
+
+.char-item.hint {
+  background-color: rgba(181, 137, 0, 0.2);
+  border: 2px solid #b58900;
+  color: #b58900;
+}
+
+/* 文本輸入框 */
+textarea {
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #073642;
+  color: #839496;
+  border: 2px solid #586e75;
+  border-radius: 8px;
+  font-size: 20px;
+  font-family: 'Noto Sans', sans-serif;
+  resize: vertical;
+  transition: border-color 0.2s ease;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #268bd2;
+}
+
+textarea::placeholder {
+  color: #586e75;
+}
+
+/* 所有按鈕 */
+button {
+  margin-bottom: 10px;
+  background-color: #073642;
+  color: #eee8d5;
+  border: 2px solid #586e75;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 20px;
+  font-family: 'Noto Sans', sans-serif;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background-color: #094959;
+}
+
+/* 分隔線 */
+hr {
+  border: none;
+  border-top: 1px solid #586e75;
+  margin: 20px 0;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .App {
+    font-size: 28px;
+    padding: 10px;
+    margin-top: 10px;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .game-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .scrambledWords {
+    font-size: 24px;
+  }
+
+  .word {
+    padding: 12px 20px;
+    font-size: 36px;
+    min-width: 80px;
+  }
+
+  .choice {
+    gap: 10px;
+    padding: 15px;
+  }
+
+  .score-display,
+  .progress-display {
+    font-size: 16px;
+  }
+
+  textarea {
+    font-size: 16px;
+  }
+
+  .story-button {
+    font-size: 14px;
+    padding: 6px 12px;
+  }
+
+  .hint {
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .highlight {
+    padding: 2px 4px;
+  }
+
+  .complete-screen h2 {
+    font-size: 32px;
+  }
+
+  .final-score {
+    font-size: 20px;
+  }
+}
+
+/* 更小螢幕 */
+@media (max-width: 480px) {
+  .App {
+    font-size: 24px;
+    padding: 8px;
+  }
+
+  .word {
+    padding: 10px 16px;
+    font-size: 32px;
+    min-width: 70px;
+  }
+
+  .scrambledWords {
+    font-size: 20px;
+  }
+}
+
+/* Confirmation Dialog */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog-box {
+  background-color: #073642;
+  border: 2px solid #268bd2;
+  border-radius: 8px;
+  padding: 30px;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-message {
+  font-size: 24px;
+  color: #839496;
+  margin-bottom: 25px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+}
+
+.dialog-button {
+  font-size: 20px;
+  padding: 12px 30px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: bold;
+}
+
+.dialog-button.confirm {
+  background-color: #268bd2;
+  color: #fdf6e3;
+}
+
+.dialog-button.confirm:hover {
+  background-color: #2aa198;
+}
+
+.dialog-button.cancel {
+  background-color: #586e75;
+  color: #fdf6e3;
+}
+
+.dialog-button.cancel:hover {
+  background-color: #dc322f;
+}

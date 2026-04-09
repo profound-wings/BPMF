@@ -1,0 +1,14 @@
+@font-face {
+  font-family: 'Noto Sans';
+  src: url('./assets/fonts/NotoSans-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Bpmf Zihi Only';
+  src: url('./assets/fonts/BpmfZihiOnly-R.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Bpmf Zihi Sans';
+  src: url('./assets/fonts/BpmfZihiSans-Regular.ttf') format('truetype');
+}
