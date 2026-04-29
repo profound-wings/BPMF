@@ -1,70 +1,61 @@
-# Getting Started with Create React App
+# BPMF — Zhuyin Practice ㄅㄆㄇㄈ
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A Chinese Zhuyin (Bopomofo / 注音符號) practice game for kids. The app picks characters from story texts one by one and asks the child to choose the correct one, building familiarity with character shapes and their Zhuyin pronunciations.
 
-## Available Scripts
+![icon](public/logo192.png)
 
-In the project directory, you can run:
+## How to Play
 
-### `npm start`
+1. On the start screen, pick a story (or paste your own text).
+2. Characters from the story are revealed one at a time. For each blank, choose the correct character from 4–8 options.
+3. Wrong answers add more options; a hint button shows 10 scrambled characters (including the correct one).
+4. Finishing a story updates its practice score.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Spaced Repetition Scoring
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Each story has a priority score from 1 to 10. Higher score = more overdue for practice:
 
-### `npm test`
+- **10**: never practiced, or longest since last practice.
+- **1**: just completed.
+- Completing a story bumps every other story's score up so the oldest one returns to 10 once you've cycled through the rest.
+- Scores show on the story buttons on the start screen.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Scores are persisted in browser `localStorage` under `bpmf_completion_records`. Clearing browser data resets progress.
 
-### `npm run build`
+## Commands
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+npm start        # Vite dev server at http://localhost:3000/BPMF/
+npm run build    # production build into build/
+npm run preview  # preview the production build locally
+npm run deploy   # build + publish to GitHub Pages
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Built with [Vite](https://vite.dev/) + React 19.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Adding Stories
 
-### `npm run eject`
+Edit [src/texts.js](src/texts.js):
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+- Each story is a string constant. The first line is used as the story title.
+- Add it to the `allTexts` array to make it appear on the start screen.
+- IVS (Ideographic Variation Sequence) selectors are supported for character variants.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Fonts & Theme
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- Zhuyin fonts: [BpmfZihiOnly](src/assets/fonts/BpmfZihiOnly-R.ttf), [BpmfZihiSans](src/assets/fonts/BpmfZihiSans-Regular.ttf).
+- Theme: Solarized Dark (background `#002b36`, text `#839496`).
+- Completed characters render in the Zhuyin font (with pronunciation marks); option buttons use a regular font so they don't give the answer away.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Project Layout
 
-## Learn More
+```
+src/
+├── App.js          # main logic (state, scoring, character extraction)
+├── App.css         # styles
+├── texts.js        # story texts
+├── Fonts.css       # font face declarations
+└── assets/fonts/   # Zhuyin TTF files
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+See [CLAUDE.md](CLAUDE.md) for implementation details.

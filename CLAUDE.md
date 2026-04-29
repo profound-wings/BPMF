@@ -8,9 +8,12 @@ This is a Chinese Zhuyin (Bopomofo/注音符號) learning game built with React.
 
 ## Commands
 
-- `npm start` - Run development server at http://localhost:3000
-- `npm test` - Run tests in watch mode
+- `npm start` - Run Vite dev server at http://localhost:3000/BPMF/
 - `npm run build` - Build for production to `build/` folder
+- `npm run preview` - Preview the production build
+- `npm run deploy` - Build and deploy to GitHub Pages
+
+Build tooling: Vite 6 + `@vitejs/plugin-react`. The production `base` is `/BPMF/` (set in [vite.config.js](vite.config.js)) to match the GitHub Pages path.
 
 ## Architecture
 
