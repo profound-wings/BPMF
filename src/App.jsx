@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import './Fonts.css';
 import './App.css';
 import { allTexts } from './texts';
+import Settings from './Settings';
+import { appendCompletion } from './google';
 
 // Constants
 const MIN_CHOICES = 4;
@@ -34,7 +36,7 @@ const getTextKey = (text) => {
 
 // Save completion record with score
 // Uses retry mechanism to handle race conditions from multiple windows
-const saveCompletionRecord = (textKey, earnedScore, maxRetries = 3) => {
+const saveCompletionRecord = (textKey, earnedScore, charCount, maxRetries = 3) => {
   const timestamp = new Date().toISOString();
   const scoreIncrement = (MAX_SCORE - MIN_SCORE) / (allTexts.length - 1);
 
@@ -67,7 +69,8 @@ const saveCompletionRecord = (textKey, earnedScore, maxRetries = 3) => {
         score: MIN_SCORE,
         lastCompleted: timestamp,
         order: maxOrder + 1,
-        earnedScore: earnedScore // Record the score earned at completion
+        earnedScore: earnedScore, // Record the score earned at completion
+        charCount: charCount // Number of Chinese characters in the story
       };
 
       // Increase score for all other texts (accumulate as float)
@@ -185,6 +188,8 @@ function App() {
   const [startScore, setStartScore] = useState(MAX_SCORE); // Score at game start (for display on completion screen)
   const [lastEarnedScore, setLastEarnedScore] = useState(null); // Score earned during previous completion
   const [storageVersion, setStorageVersion] = useState(0); // Triggers re-render when localStorage changes in other windows
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
+  const [syncError, setSyncError] = useState('');
 
   // Refs
   const completedTextRef = useRef(null);
@@ -221,8 +226,37 @@ function App() {
   useEffect(() => {
     if (isGameComplete && text) {
       const textKey = getTextKey(text);
-      saveCompletionRecord(textKey, startScore);
+      saveCompletionRecord(textKey, startScore, characterList.length);
+
+      setSyncStatus('syncing');
+      setSyncError('');
+      appendCompletion({
+        textKey,
+        completedAt: new Date().toISOString(),
+        earnedScore: startScore,
+        score,
+        charCount: characterList.length,
+        accuracy,
+        hintCount: hintUsedCount,
+        wrongChars,
+        hintUsedChars,
+      })
+        .then((result) => {
+          if (result.skipped) {
+            setSyncStatus(result.reason === 'token_unavailable' ? 'error' : 'idle');
+            if (result.reason === 'token_unavailable') {
+              setSyncError('連結已過期，請到設定重新連結 Google');
+            }
+          } else {
+            setSyncStatus('success');
+          }
+        })
+        .catch((err) => {
+          setSyncStatus('error');
+          setSyncError(err.message || '同步失敗');
+        });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGameComplete, text, startScore]);
 
   // Memoized unique characters
@@ -261,6 +295,8 @@ function App() {
     setHintUsedChars([]);
     setStartScore(MAX_SCORE);
     setLastEarnedScore(null);
+    setSyncStatus('idle');
+    setSyncError('');
   }, []);
 
   const handleStartGame = useCallback(() => {
@@ -390,6 +426,8 @@ function App() {
 
   return (
     <div className="App">
+      <Settings />
+
       {/* Confirmation Dialog */}
       {confirmDialog && (
         <div className="dialog-overlay" onClick={confirmDialog.onCancel}>
@@ -545,6 +583,14 @@ function App() {
             </div>
           )}
           
+          {syncStatus !== 'idle' && (
+            <div className={`sync-status sync-status--${syncStatus}`}>
+              {syncStatus === 'syncing' && '🔄 同步到 Google Sheet…'}
+              {syncStatus === 'success' && '✅ 已同步到 Google Sheet'}
+              {syncStatus === 'error' && `⚠ ${syncError || '同步失敗'}（資料仍存於本地）`}
+            </div>
+          )}
+
           <button onClick={resetGameState} className="restart-button">
             再玩一次
           </button>
