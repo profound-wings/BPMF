@@ -767,6 +767,14 @@ hr {
   font-weight: bold;
 }
 
+.settings-connected-email {
+  font-size: 13px;
+  color: #93a1a1;
+  margin: -4px 0 0 0;
+  font-family: 'Noto Sans', monospace;
+  word-break: break-all;
+}
+
 .settings-sheet-link {
   font-size: 15px;
   color: #268bd2;
@@ -777,6 +785,15 @@ hr {
 
 .settings-sheet-link:hover {
   color: #2aa198;
+}
+
+.settings-connected--expired {
+  background-color: rgba(220, 50, 47, 0.12);
+  border-color: #dc322f;
+}
+
+.settings-connected-status--expired {
+  color: #dc322f;
 }
 
 /* 完成畫面同步狀態提示 */
@@ -806,4 +823,25 @@ hr {
   color: #cb4b16;
   background-color: rgba(203, 75, 22, 0.12);
   border: 1px solid #cb4b16;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.sync-retry-button {
+  font-size: 14px;
+  padding: 8px 16px;
+  background-color: #cb4b16;
+  color: #fdf6e3;
+  border: 2px solid #cb4b16;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Noto Sans', sans-serif;
+  transition: all 0.2s ease;
+}
+
+.sync-retry-button:hover {
+  background-color: #dc322f;
+  border-color: #dc322f;
 }

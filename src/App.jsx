@@ -3,7 +3,7 @@ import './Fonts.css';
 import './App.css';
 import { allTexts } from './texts';
 import Settings from './Settings';
-import { appendCompletion } from './google';
+import { appendCompletion, connect } from './google';
 
 // Constants
 const MIN_CHOICES = 4;
@@ -190,6 +190,7 @@ function App() {
   const [storageVersion, setStorageVersion] = useState(0); // Triggers re-render when localStorage changes in other windows
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
   const [syncError, setSyncError] = useState('');
+  const [pendingSyncRecord, setPendingSyncRecord] = useState(null);
 
   // Refs
   const completedTextRef = useRef(null);
@@ -228,9 +229,7 @@ function App() {
       const textKey = getTextKey(text);
       saveCompletionRecord(textKey, startScore, characterList.length);
 
-      setSyncStatus('syncing');
-      setSyncError('');
-      appendCompletion({
+      const record = {
         textKey,
         completedAt: new Date().toISOString(),
         earnedScore: startScore,
@@ -240,15 +239,27 @@ function App() {
         hintCount: hintUsedCount,
         wrongChars,
         hintUsedChars,
-      })
+      };
+      setPendingSyncRecord(record);
+      setSyncStatus('syncing');
+      setSyncError('');
+      appendCompletion(record)
         .then((result) => {
           if (result.skipped) {
-            setSyncStatus(result.reason === 'token_unavailable' ? 'error' : 'idle');
-            if (result.reason === 'token_unavailable') {
-              setSyncError('連結已過期，請到設定重新連結 Google');
+            if (result.reason === 'not_connected') {
+              setSyncStatus('idle');
+              setPendingSyncRecord(null);
+            } else {
+              setSyncStatus('error');
+              setSyncError(
+                result.reason === 'token_unavailable'
+                  ? '連結已過期'
+                  : '帳號連結與目前 Client ID 不符'
+              );
             }
           } else {
             setSyncStatus('success');
+            setPendingSyncRecord(null);
           }
         })
         .catch((err) => {
@@ -258,6 +269,26 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGameComplete, text, startScore]);
+
+  const handleRelinkAndRetry = useCallback(async () => {
+    if (!pendingSyncRecord || syncStatus === 'syncing') return;
+    setSyncStatus('syncing');
+    setSyncError('');
+    try {
+      await connect();
+      const result = await appendCompletion(pendingSyncRecord);
+      if (result.skipped) {
+        setSyncStatus('error');
+        setSyncError(`重試後仍無法同步（${result.reason}）`);
+      } else {
+        setSyncStatus('success');
+        setPendingSyncRecord(null);
+      }
+    } catch (err) {
+      setSyncStatus('error');
+      setSyncError(err.message || '重新連結失敗');
+    }
+  }, [pendingSyncRecord, syncStatus]);
 
   // Memoized unique characters
   const uniqueCharacters = useMemo(() => {
@@ -297,6 +328,7 @@ function App() {
     setLastEarnedScore(null);
     setSyncStatus('idle');
     setSyncError('');
+    setPendingSyncRecord(null);
   }, []);
 
   const handleStartGame = useCallback(() => {
@@ -587,7 +619,20 @@ function App() {
             <div className={`sync-status sync-status--${syncStatus}`}>
               {syncStatus === 'syncing' && '🔄 同步到 Google Sheet…'}
               {syncStatus === 'success' && '✅ 已同步到 Google Sheet'}
-              {syncStatus === 'error' && `⚠ ${syncError || '同步失敗'}（資料仍存於本地）`}
+              {syncStatus === 'error' && (
+                <>
+                  <span>⚠ {syncError || '同步失敗'}（資料仍存於本地）</span>
+                  {pendingSyncRecord && (
+                    <button
+                      type="button"
+                      onClick={handleRelinkAndRetry}
+                      className="sync-retry-button"
+                    >
+                      重新連結並重試
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
 

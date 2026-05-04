@@ -1,9 +1,10 @@
 import { getGoogleClientId } from './Settings';
 
 const SESSION_KEY = 'bpmf_google_session';
-const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+const SCOPE =
+  'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
 const SPREADSHEET_TITLE = 'BPMF 練習紀錄';
-const TOKEN_REFRESH_BUFFER_MS = 60_000;
+export const TOKEN_REFRESH_BUFFER_MS = 60_000;
 const HEADER_ROW = [
   '完成時間',
   '故事',
@@ -48,7 +49,7 @@ const waitForGsi = async () => {
   throw new Error('Google Identity Services 載入失敗，請確認網路連線');
 };
 
-const requestAccessToken = async ({ silent }) => {
+const requestAccessToken = async ({ silent, hint }) => {
   await waitForGsi();
   const clientId = getGoogleClientId();
   if (!clientId) throw new Error('尚未設定 Client ID');
@@ -57,6 +58,7 @@ const requestAccessToken = async ({ silent }) => {
     const tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: SCOPE,
+      hint: hint || undefined,
       callback: (response) => {
         if (response.error) {
           reject(new Error(response.error_description || response.error));
@@ -70,6 +72,19 @@ const requestAccessToken = async ({ silent }) => {
     });
     tokenClient.requestAccessToken(silent ? { prompt: '' } : {});
   });
+};
+
+const fetchUserEmail = async (accessToken) => {
+  try {
+    const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.email || null;
+  } catch {
+    return null;
+  }
 };
 
 const createSpreadsheet = async (accessToken) => {
@@ -100,9 +115,15 @@ const verifySpreadsheet = async (accessToken, spreadsheetId) => {
 };
 
 export const connect = async () => {
-  const tokenResponse = await requestAccessToken({ silent: false });
+  const previousEmail = readSession()?.email;
+  const tokenResponse = await requestAccessToken({
+    silent: false,
+    hint: previousEmail,
+  });
   const accessToken = tokenResponse.access_token;
   const expiresAt = Date.now() + Number(tokenResponse.expires_in) * 1000;
+
+  const email = await fetchUserEmail(accessToken);
 
   const existing = readSession();
   let sheet = null;
@@ -119,9 +140,32 @@ export const connect = async () => {
     expiresAt,
     spreadsheetId: sheet.id,
     spreadsheetUrl: sheet.url,
+    email,
   };
   writeSession(session);
   return session;
+};
+
+export const refreshSession = async () => {
+  const session = readSession();
+  if (!session?.spreadsheetId) throw new Error('尚未連結');
+  if (session.clientId !== getGoogleClientId()) {
+    throw new Error('Client ID 已變更，請重新連結');
+  }
+  const tokenResponse = await requestAccessToken({
+    silent: true,
+    hint: session.email,
+  });
+  const refreshed = {
+    ...session,
+    accessToken: tokenResponse.access_token,
+    expiresAt: Date.now() + Number(tokenResponse.expires_in) * 1000,
+  };
+  if (!session.email) {
+    refreshed.email = await fetchUserEmail(refreshed.accessToken);
+  }
+  writeSession(refreshed);
+  return refreshed;
 };
 
 export const disconnect = async () => {
@@ -216,16 +260,5 @@ export const getValidAccessToken = async () => {
   if (Date.now() < session.expiresAt - TOKEN_REFRESH_BUFFER_MS) {
     return session.accessToken;
   }
-  try {
-    const tokenResponse = await requestAccessToken({ silent: true });
-    const refreshed = {
-      ...session,
-      accessToken: tokenResponse.access_token,
-      expiresAt: Date.now() + Number(tokenResponse.expires_in) * 1000,
-    };
-    writeSession(refreshed);
-    return refreshed.accessToken;
-  } catch {
-    return null;
-  }
+  return null;
 };
