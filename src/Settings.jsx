@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { connect, disconnect, readSession } from './google';
+import { connect, disconnect, readSession, refreshSession } from './google';
 
 const CONFIG_KEY = 'bpmf_google_config';
 
@@ -30,6 +30,12 @@ export const hasGoogleClientId = () => Boolean(getGoogleClientId());
 const sessionMatchesClientId = (session, clientId) =>
   Boolean(session && session.clientId === clientId && session.spreadsheetId);
 
+const formatRemaining = (ms) => {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes <= 0) return '剩不到 1 分鐘';
+  return `剩 ${minutes} 分鐘`;
+};
+
 function Settings() {
   const [isOpen, setIsOpen] = useState(false);
   const [clientId, setClientId] = useState('');
@@ -38,21 +44,28 @@ function Settings() {
   const [session, setSession] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (isOpen) {
-      const current = getGoogleClientId();
-      setClientId(current);
-      setSavedClientId(current);
-      setSession(readSession());
-      setShowHelp(false);
-      setError('');
-      setBusy(false);
-    }
+    if (!isOpen) return;
+    const current = getGoogleClientId();
+    setClientId(current);
+    setSavedClientId(current);
+    setSession(readSession());
+    setShowHelp(false);
+    setError('');
+    setBusy(false);
+    setNow(Date.now());
+
+    const id = setInterval(() => setNow(Date.now()), 10_000);
+    return () => clearInterval(id);
   }, [isOpen]);
 
   const dirty = clientId.trim() !== savedClientId;
   const connected = sessionMatchesClientId(session, savedClientId);
+  const expiresAt = session?.expiresAt || 0;
+  const remainingMs = expiresAt - now;
+  const isExpired = !expiresAt || remainingMs <= 0;
 
   const handleSave = () => {
     const trimmed = clientId.trim();
@@ -81,6 +94,20 @@ function Settings() {
       setSession(newSession);
     } catch (e) {
       setError(e.message || '連結失敗');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const refreshed = await refreshSession();
+      setSession(refreshed);
+      setNow(Date.now());
+    } catch (e) {
+      setError(e.message || '更新失敗，請改用「重新連結」');
     } finally {
       setBusy(false);
     }
@@ -203,8 +230,23 @@ function Settings() {
                   </p>
                 )}
                 {connected ? (
-                  <div className="settings-connected">
-                    <p className="settings-connected-status">✅ 已連結 Google</p>
+                  <div
+                    className={`settings-connected ${
+                      isExpired ? 'settings-connected--expired' : ''
+                    }`}
+                  >
+                    <p
+                      className={`settings-connected-status ${
+                        isExpired ? 'settings-connected-status--expired' : ''
+                      }`}
+                    >
+                      {isExpired
+                        ? '❌ 連結已過期'
+                        : `✅ 已連結 Google（${formatRemaining(remainingMs)}）`}
+                    </p>
+                    {session.email && (
+                      <p className="settings-connected-email">{session.email}</p>
+                    )}
                     <a
                       href={session.spreadsheetUrl}
                       target="_blank"
@@ -213,14 +255,36 @@ function Settings() {
                     >
                       開啟試算表 ↗
                     </a>
-                    <button
-                      type="button"
-                      onClick={handleDisconnect}
-                      className="dialog-button cancel"
-                      disabled={busy}
-                    >
-                      {busy ? '處理中…' : '中斷連結'}
-                    </button>
+                    <div className="settings-inline-buttons">
+                      {isExpired ? (
+                        <button
+                          type="button"
+                          onClick={handleConnect}
+                          className="dialog-button confirm"
+                          disabled={busy || dirty}
+                        >
+                          {busy ? '連結中…' : '🔗 重新連結'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleRefresh}
+                          className="dialog-button confirm"
+                          disabled={busy || dirty}
+                          title="不跳 popup，直接延長有效期"
+                        >
+                          {busy ? '更新中…' : '🔄 更新 token'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleDisconnect}
+                        className="dialog-button cancel"
+                        disabled={busy}
+                      >
+                        {busy ? '處理中…' : '中斷連結'}
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
