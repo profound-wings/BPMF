@@ -6,6 +6,7 @@ const SCOPE =
 const SPREADSHEET_TITLE = 'BPMF 練習紀錄';
 export const TOKEN_REFRESH_BUFFER_MS = 60_000;
 const HEADER_ROW = [
+  '開始時間',
   '完成時間',
   '故事',
   '得分',
@@ -184,7 +185,7 @@ export const disconnect = async () => {
 
 const ensureHeaderRow = async (accessToken, spreadsheetId) => {
   const getResp = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/A1:I1`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/A1:J1`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   if (!getResp.ok) {
@@ -192,10 +193,48 @@ const ensureHeaderRow = async (accessToken, spreadsheetId) => {
     throw new Error(`讀取試算表失敗 (${getResp.status})：${detail}`);
   }
   const data = await getResp.json();
-  if (data.values?.[0]?.length) return;
+  const header = data.values?.[0] || [];
 
+  // Already migrated — first column is the start-time column.
+  if (header[0] === HEADER_ROW[0]) return;
+
+  // Old layout with existing data: insert a new first column so all existing
+  // cells (header + data rows) shift right and stay aligned.
+  if (header.length > 0) {
+    const insertResp = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              insertDimension: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'COLUMNS',
+                  startIndex: 0,
+                  endIndex: 1,
+                },
+                inheritFromBefore: false,
+              },
+            },
+          ],
+        }),
+      }
+    );
+    if (!insertResp.ok) {
+      const detail = await insertResp.text();
+      throw new Error(`插入欄位失敗 (${insertResp.status})：${detail}`);
+    }
+  }
+
+  // Write (or rewrite) the full header row.
   const putResp = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/A1:I1?valueInputOption=USER_ENTERED`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/A1:J1?valueInputOption=USER_ENTERED`,
     {
       method: 'PUT',
       headers: {
@@ -224,6 +263,7 @@ export const appendCompletion = async (record) => {
   await ensureHeaderRow(token, session.spreadsheetId);
 
   const row = [
+    record.startedAt,
     record.completedAt,
     record.textKey,
     record.earnedScore,
@@ -236,7 +276,7 @@ export const appendCompletion = async (record) => {
   ];
 
   const resp = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(session.spreadsheetId)}/values/A1:I1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(session.spreadsheetId)}/values/A1:J1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
     {
       method: 'POST',
       headers: {

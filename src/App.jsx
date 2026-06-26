@@ -4,6 +4,7 @@ import './App.css';
 import { allTexts } from './texts';
 import Settings from './Settings';
 import { appendCompletion, connect } from './google';
+import { appendSyncLog, markSynced, getUnsynced } from './syncLog';
 
 // Constants
 const MIN_CHOICES = 4;
@@ -193,6 +194,7 @@ function App() {
   const [syncError, setSyncError] = useState('');
   const [pendingSyncRecord, setPendingSyncRecord] = useState(null);
   const [remainingMs, setRemainingMs] = useState(COUNTDOWN_SECONDS * 1000); // Inactivity countdown
+  const [startedAt, setStartedAt] = useState(null); // Game start time (ISO)
 
   // Refs
   const completedTextRef = useRef(null);
@@ -235,6 +237,7 @@ function App() {
 
       const record = {
         textKey,
+        startedAt,
         completedAt: new Date().toISOString(),
         earnedScore: startScore,
         score,
@@ -244,6 +247,7 @@ function App() {
         wrongChars,
         hintUsedChars,
       };
+      appendSyncLog(record); // persist locally before attempting upload
       setPendingSyncRecord(record);
       setSyncStatus('syncing');
       setSyncError('');
@@ -262,6 +266,7 @@ function App() {
               );
             }
           } else {
+            markSynced(record.completedAt);
             setSyncStatus('success');
             setPendingSyncRecord(null);
           }
@@ -275,24 +280,38 @@ function App() {
   }, [isGameComplete, text, startScore]);
 
   const handleRelinkAndRetry = useCallback(async () => {
-    if (!pendingSyncRecord || syncStatus === 'syncing') return;
+    if (syncStatus === 'syncing') return;
     setSyncStatus('syncing');
     setSyncError('');
     try {
       await connect();
-      const result = await appendCompletion(pendingSyncRecord);
-      if (result.skipped) {
+      const unsynced = getUnsynced();
+      let failed = 0;
+      for (const entry of unsynced) {
+        try {
+          const result = await appendCompletion(entry.record);
+          if (result.skipped) {
+            failed += 1;
+          } else {
+            markSynced(entry.id);
+          }
+        } catch {
+          failed += 1;
+        }
+      }
+      if (failed > 0) {
         setSyncStatus('error');
-        setSyncError(`重試後仍無法同步（${result.reason}）`);
+        setSyncError(`仍有 ${failed} 筆未同步`);
       } else {
         setSyncStatus('success');
         setPendingSyncRecord(null);
       }
+      setStorageVersion((prev) => prev + 1); // refresh unsynced count in UI
     } catch (err) {
       setSyncStatus('error');
       setSyncError(err.message || '重新連結失敗');
     }
-  }, [pendingSyncRecord, syncStatus]);
+  }, [syncStatus]);
 
   // Memoized unique characters
   const uniqueCharacters = useMemo(() => {
@@ -333,6 +352,7 @@ function App() {
     setSyncStatus('idle');
     setSyncError('');
     setPendingSyncRecord(null);
+    setStartedAt(null);
   }, []);
 
   const handleStartGame = useCallback(() => {
@@ -348,6 +368,7 @@ function App() {
     const textKey = getTextKey(inputText);
     const currentScore = getTextScore(textKey);
     const previousScore = getLastEarnedScore(textKey);
+    const start = new Date().toISOString();
 
     if (currentScore < MAX_SCORE) {
       setConfirmDialog({
@@ -367,6 +388,7 @@ function App() {
           setHintUsedChars([]);
           setStartScore(currentScore); // Save score at game start
           setLastEarnedScore(previousScore); // Save previously earned score
+          setStartedAt(start);
           setGameStarted(true);
         },
         onCancel: () => {
@@ -389,6 +411,7 @@ function App() {
     setHintUsedChars([]);
     setStartScore(currentScore); // Save score at game start
     setLastEarnedScore(previousScore); // Save previously earned score
+    setStartedAt(start);
     setGameStarted(true);
   }, [inputText]);
 
@@ -684,26 +707,32 @@ function App() {
             </div>
           )}
           
-          {syncStatus !== 'idle' && (
-            <div className={`sync-status sync-status--${syncStatus}`}>
-              {syncStatus === 'syncing' && '🔄 同步到 Google Sheet…'}
-              {syncStatus === 'success' && '✅ 已同步到 Google Sheet'}
-              {syncStatus === 'error' && (
-                <>
-                  <span>⚠ {syncError || '同步失敗'}（資料仍存於本地）</span>
-                  {pendingSyncRecord && (
-                    <button
-                      type="button"
-                      onClick={handleRelinkAndRetry}
-                      className="sync-retry-button"
-                    >
-                      重新連結並重試
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+          {(() => {
+            // storageVersion is referenced so this recomputes after resync
+            void storageVersion;
+            const pendingCount = getUnsynced().length;
+            if (syncStatus === 'syncing') {
+              return <div className="sync-status sync-status--syncing">🔄 同步到 Google Sheet…</div>;
+            }
+            if (syncStatus === 'success' && pendingCount === 0) {
+              return <div className="sync-status sync-status--success">✅ 已同步到 Google Sheet</div>;
+            }
+            if (pendingCount > 0) {
+              return (
+                <div className="sync-status sync-status--error">
+                  <span>⚠ 有 {pendingCount} 筆未同步{syncError ? `（${syncError}）` : ''}（資料已存於本地）</span>
+                  <button
+                    type="button"
+                    onClick={handleRelinkAndRetry}
+                    className="sync-retry-button"
+                  >
+                    重新連結並補傳全部
+                  </button>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           <button onClick={resetGameState} className="restart-button">
             再玩一次
