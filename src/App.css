@@ -134,6 +134,35 @@ body {
   transition: width 0.3s ease;
 }
 
+/* 倒數計時 - 無輸入 20 秒退回上一字 */
+.countdown {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.countdown-bar {
+  flex: 1;
+  height: 8px;
+  background-color: #073642;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.countdown-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.1s linear, background-color 0.1s linear;
+}
+
+.countdown-number {
+  font-weight: bold;
+  font-size: 16px;
+  min-width: 3em;
+  text-align: right;
+}
+
 /* 已完成文字區域 - 顯示所有已進行過的文字 */
 .completed-text-area {
   white-space: pre-wrap;
