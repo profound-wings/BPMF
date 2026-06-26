@@ -141,6 +141,7 @@ const getLastEarnedScore = (textKey) => {
 const MAX_CHOICES = 8;
 const SCRAMBLED_DISPLAY_COUNT = 10;
 const FEEDBACK_DELAY = 300;
+const COUNTDOWN_SECONDS = 20; // Auto-revert to previous character after this many seconds of inactivity
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = (array) => {
@@ -191,6 +192,7 @@ function App() {
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
   const [syncError, setSyncError] = useState('');
   const [pendingSyncRecord, setPendingSyncRecord] = useState(null);
+  const [remainingMs, setRemainingMs] = useState(COUNTDOWN_SECONDS * 1000); // Inactivity countdown
 
   // Refs
   const completedTextRef = useRef(null);
@@ -200,6 +202,8 @@ function App() {
   const currentWord = currentCharInfo?.char || '';
   const currentTextIndex = currentCharInfo?.index ?? text.length;
   const isGameComplete = gameStarted && currentCharIndex >= characterList.length;
+  // Countdown is only active from the 2nd character onward (need a previous char to revert to)
+  const timerActive = gameStarted && !isGameComplete && currentCharIndex >= 1;
   const accuracy = totalAttempts > 0 ? Math.round((score / totalAttempts) * 100) : 0;
   const progress = characterList.length > 0 ? Math.round((currentCharIndex / characterList.length) * 100) : 0;
 
@@ -441,6 +445,52 @@ function App() {
     [currentWord, isProcessing, scrambledWords, choiceOptions, wrongChars]
   );
 
+  // Revert to the previous character when the countdown expires.
+  // Penalty: remove the previous point (score -1) but keep its attempt in the denominator
+  // (totalAttempts unchanged), so accuracy drops and the denominator stays inflated.
+  const handleTimeout = useCallback(() => {
+    setFeedback(null);
+    setShowHint(false);
+    setChoiceCount(MIN_CHOICES);
+    setScore((prev) => Math.max(0, prev - 1));
+    setCurrentCharIndex((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  // Inactivity countdown: resets on every answer (currentCharIndex / totalAttempts change)
+  // and on any click anywhere on the page.
+  useEffect(() => {
+    if (!timerActive) {
+      setRemainingMs(COUNTDOWN_SECONDS * 1000);
+      return;
+    }
+
+    let start = Date.now();
+    setRemainingMs(COUNTDOWN_SECONDS * 1000);
+
+    // Any click resets the countdown
+    const handleActivity = () => {
+      start = Date.now();
+      setRemainingMs(COUNTDOWN_SECONDS * 1000);
+    };
+    window.addEventListener('pointerdown', handleActivity);
+
+    const intervalId = setInterval(() => {
+      const left = COUNTDOWN_SECONDS * 1000 - (Date.now() - start);
+      if (left <= 0) {
+        clearInterval(intervalId);
+        setRemainingMs(0);
+        handleTimeout();
+      } else {
+        setRemainingMs(left);
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('pointerdown', handleActivity);
+    };
+  }, [timerActive, currentCharIndex, totalAttempts, handleTimeout]);
+
   // Keyboard support
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -534,6 +584,25 @@ function App() {
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: `${progress}%` }} />
           </div>
+
+          {/* Inactivity countdown - shown from the 2nd character onward */}
+          {timerActive && (() => {
+            const fraction = remainingMs / (COUNTDOWN_SECONDS * 1000);
+            const color = `hsl(${Math.round(120 * fraction)}, 70%, 45%)`;
+            return (
+              <div className="countdown">
+                <div className="countdown-bar">
+                  <div
+                    className="countdown-fill"
+                    style={{ width: `${fraction * 100}%`, backgroundColor: color }}
+                  />
+                </div>
+                <span className="countdown-number" style={{ color }}>
+                  ⏱ {Math.ceil(remainingMs / 1000)}
+                </span>
+              </div>
+            );
+          })()}
 
           {/* Display completed text + current character being selected (using Zhuyin font) */}
           <div className="completed-text-area" ref={completedTextRef}>
