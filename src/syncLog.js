@@ -17,8 +17,6 @@ const write = (entries) => {
   }
 };
 
-export const getSyncLog = () => read();
-
 // Persist a sheet-bound record locally as unsynced. Dedups by completedAt.
 export const appendSyncLog = (record) => {
   const entries = read();
