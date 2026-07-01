@@ -5,6 +5,7 @@ import { allTexts } from './texts';
 import Settings from './Settings';
 import { appendCompletion, connect } from './google';
 import { appendSyncLog, markSynced, getUnsynced } from './syncLog';
+import { useSheetPicker } from './SheetPicker';
 
 // Constants
 const MIN_CHOICES = 4;
@@ -192,9 +193,11 @@ function App() {
   const [storageVersion, setStorageVersion] = useState(0); // Triggers re-render when localStorage changes in other windows
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
   const [syncError, setSyncError] = useState('');
-  const [pendingSyncRecord, setPendingSyncRecord] = useState(null);
   const [remainingMs, setRemainingMs] = useState(COUNTDOWN_SECONDS * 1000); // Inactivity countdown
   const [startedAt, setStartedAt] = useState(null); // Game start time (ISO)
+
+  // Sheet picker (for choosing among multiple existing spreadsheets on relink)
+  const { requestChoice, pickerElement } = useSheetPicker();
 
   // Refs
   const completedTextRef = useRef(null);
@@ -248,7 +251,6 @@ function App() {
         hintUsedChars,
       };
       appendSyncLog(record); // persist locally before attempting upload
-      setPendingSyncRecord(record);
       setSyncStatus('syncing');
       setSyncError('');
       appendCompletion(record)
@@ -256,7 +258,6 @@ function App() {
           if (result.skipped) {
             if (result.reason === 'not_connected') {
               setSyncStatus('idle');
-              setPendingSyncRecord(null);
             } else {
               setSyncStatus('error');
               setSyncError(
@@ -268,7 +269,6 @@ function App() {
           } else {
             markSynced(record.completedAt);
             setSyncStatus('success');
-            setPendingSyncRecord(null);
           }
         })
         .catch((err) => {
@@ -284,7 +284,7 @@ function App() {
     setSyncStatus('syncing');
     setSyncError('');
     try {
-      await connect();
+      await connect({ onMultiple: requestChoice });
       const unsynced = getUnsynced();
       let failed = 0;
       for (const entry of unsynced) {
@@ -304,14 +304,13 @@ function App() {
         setSyncError(`仍有 ${failed} 筆未同步`);
       } else {
         setSyncStatus('success');
-        setPendingSyncRecord(null);
       }
       setStorageVersion((prev) => prev + 1); // refresh unsynced count in UI
     } catch (err) {
       setSyncStatus('error');
       setSyncError(err.message || '重新連結失敗');
     }
-  }, [syncStatus]);
+  }, [syncStatus, requestChoice]);
 
   // Memoized unique characters
   const uniqueCharacters = useMemo(() => {
@@ -351,7 +350,6 @@ function App() {
     setLastEarnedScore(null);
     setSyncStatus('idle');
     setSyncError('');
-    setPendingSyncRecord(null);
     setStartedAt(null);
   }, []);
 
@@ -532,6 +530,7 @@ function App() {
   return (
     <div className="App">
       <Settings />
+      {pickerElement}
 
       {/* Confirmation Dialog */}
       {confirmDialog && (

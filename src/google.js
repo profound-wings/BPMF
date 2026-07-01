@@ -2,7 +2,7 @@ import { getGoogleClientId } from './Settings';
 
 const SESSION_KEY = 'bpmf_google_session';
 const SCOPE =
-  'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
+  'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email';
 const SPREADSHEET_TITLE = 'BPMF 練習紀錄';
 export const TOKEN_REFRESH_BUFFER_MS = 60_000;
 const HEADER_ROW = [
@@ -35,12 +35,6 @@ const writeSession = (session) => {
   }
 };
 
-export const isSessionValid = (session) => {
-  if (!session?.accessToken || !session?.expiresAt) return false;
-  if (session.clientId !== getGoogleClientId()) return false;
-  return Date.now() < session.expiresAt - TOKEN_REFRESH_BUFFER_MS;
-};
-
 const waitForGsi = async () => {
   if (window.google?.accounts?.oauth2) return;
   for (let i = 0; i < 50; i++) {
@@ -63,15 +57,29 @@ const requestAccessToken = async ({ silent, hint }) => {
       callback: (response) => {
         if (response.error) {
           reject(new Error(response.error_description || response.error));
-        } else {
-          resolve(response);
+          return;
         }
+        // Ensure the user granted every scope we need. A partial grant (e.g.
+        // unchecking Sheets in the consent screen) otherwise causes a confusing
+        // 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT downstream.
+        const oauth2 = window.google?.accounts?.oauth2;
+        const required = SCOPE.split(' ');
+        if (
+          oauth2?.hasGrantedAllScopes &&
+          !oauth2.hasGrantedAllScopes(response, ...required)
+        ) {
+          reject(new Error('請允許所有要求的權限（Google Sheets 與 Drive）後再連結'));
+          return;
+        }
+        resolve(response);
       },
       error_callback: (err) => {
         reject(new Error(err.message || err.type || '授權失敗'));
       },
     });
-    tokenClient.requestAccessToken(silent ? { prompt: '' } : {});
+    // Interactive connect forces the consent screen so newly-added scopes are
+    // always granted; silent refresh stays prompt-less.
+    tokenClient.requestAccessToken(silent ? { prompt: '' } : { prompt: 'consent' });
   });
 };
 
@@ -115,7 +123,39 @@ const verifySpreadsheet = async (accessToken, spreadsheetId) => {
   return { id: data.spreadsheetId, url: data.spreadsheetUrl };
 };
 
-export const connect = async () => {
+// Search the user's Drive for previously-created BPMF spreadsheets.
+// Returns an array of candidates (newest first), or null if the search is
+// unavailable (e.g. Drive API not enabled) so callers can fall back to create.
+const findSpreadsheets = async (accessToken) => {
+  const q =
+    `name = '${SPREADSHEET_TITLE}'` +
+    " and mimeType = 'application/vnd.google-apps.spreadsheet'" +
+    ' and trashed = false' +
+    " and 'me' in owners";
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+        '&fields=files(id,name,modifiedTime,webViewLink)&orderBy=modifiedTime desc',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!resp.ok) {
+      console.warn(`Drive 搜尋失敗 (${resp.status})，改為建立新試算表`);
+      return null;
+    }
+    const data = await resp.json();
+    return (data.files || []).map((f) => ({
+      id: f.id,
+      name: f.name,
+      modifiedTime: f.modifiedTime,
+      url: f.webViewLink,
+    }));
+  } catch (error) {
+    console.warn('Drive 搜尋發生錯誤，改為建立新試算表：', error);
+    return null;
+  }
+};
+
+export const connect = async (options = {}) => {
   const previousEmail = readSession()?.email;
   const tokenResponse = await requestAccessToken({
     silent: false,
@@ -128,9 +168,33 @@ export const connect = async () => {
 
   const existing = readSession();
   let sheet = null;
+
+  // 1) Reuse the sheet already linked in the current session, if still valid.
   if (existing?.spreadsheetId && existing.clientId === getGoogleClientId()) {
     sheet = await verifySpreadsheet(accessToken, existing.spreadsheetId);
   }
+
+  // 2) No current sheet — look for a previously-used one in the user's Drive.
+  if (!sheet) {
+    const candidates = await findSpreadsheets(accessToken);
+    if (candidates && candidates.length === 1) {
+      sheet = { id: candidates[0].id, url: candidates[0].url };
+    } else if (candidates && candidates.length > 1) {
+      let choice = candidates[0].id; // default: newest, when no picker provided
+      if (typeof options.onMultiple === 'function') {
+        choice = await options.onMultiple(candidates);
+      }
+      if (choice === null) {
+        throw new Error('已取消連結');
+      }
+      if (choice !== 'new') {
+        const picked = candidates.find((c) => c.id === choice);
+        if (picked) sheet = { id: picked.id, url: picked.url };
+      }
+    }
+  }
+
+  // 3) Nothing found / chose to create → make a new spreadsheet.
   if (!sheet) {
     sheet = await createSpreadsheet(accessToken);
   }

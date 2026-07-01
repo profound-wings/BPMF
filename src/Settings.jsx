@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { connect, disconnect, readSession, refreshSession } from './google';
+import { useSheetPicker } from './SheetPicker';
 
 const CONFIG_KEY = 'bpmf_google_config';
 
@@ -45,6 +46,7 @@ function Settings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => Date.now());
+  const { requestChoice, pickerElement } = useSheetPicker();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -90,7 +92,7 @@ function Settings() {
     setBusy(true);
     setError('');
     try {
-      const newSession = await connect();
+      const newSession = await connect({ onMultiple: requestChoice });
       setSession(newSession);
     } catch (e) {
       setError(e.message || '連結失敗');
@@ -134,6 +136,8 @@ function Settings() {
       >
         ⚙
       </button>
+
+      {pickerElement}
 
       {isOpen && (
         <div className="dialog-overlay" onClick={() => setIsOpen(false)}>
@@ -203,7 +207,7 @@ function Settings() {
                     </a>{' '}
                     並建立新 project
                   </li>
-                  <li>APIs &amp; Services → Library，啟用「Google Sheets API」</li>
+                  <li>APIs &amp; Services → Library，啟用「Google Sheets API」與「Google Drive API」</li>
                   <li>
                     OAuth consent screen 選 External，填基本資料即可（不需送審，用 Testing
                     模式就好）

@@ -134,6 +134,56 @@ body {
   transition: width 0.3s ease;
 }
 
+/* 試算表選擇器 - 找到多個既有 sheet 時 */
+.dialog-overlay.sheet-picker-overlay {
+  z-index: 1100; /* above the settings dialog (1000); two-class selector wins over .dialog-overlay */
+}
+
+.sheet-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.sheet-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  background-color: #073642;
+  border: 1px solid #586e75;
+  border-radius: 6px;
+  color: #839496;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.sheet-picker-item:hover {
+  border-color: #2aa198;
+  background-color: #0a4b5c;
+}
+
+.sheet-picker-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #93a1a1;
+}
+
+.sheet-picker-time {
+  font-size: 12px;
+  color: #586e75;
+}
+
+.sheet-picker-link {
+  font-size: 12px;
+  color: #268bd2;
+}
+
 /* 倒數計時 - 無輸入 20 秒退回上一字 */
 .countdown {
   display: flex;
