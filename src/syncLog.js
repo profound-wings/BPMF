@@ -43,3 +43,7 @@ export const markSynced = (id) => {
 
 // Records that have not been uploaded yet, oldest first.
 export const getUnsynced = () => read().filter((e) => !e.synced);
+
+// Every locally-stored completion record (synced and unsynced), oldest first.
+// Used for the local CSV export, which is independent of Google sync.
+export const getAllSyncRecords = () => read().map((e) => e.record);

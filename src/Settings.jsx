@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { connect, disconnect, readSession, refreshSession } from './google';
+import {
+  connect,
+  disconnect,
+  readSession,
+  refreshSession,
+  resyncUnsynced,
+} from './google';
+import { getUnsynced } from './syncLog';
+import { exportRecordsToCsv, getExportableCount } from './csv';
 import { useSheetPicker } from './SheetPicker';
 
 const CONFIG_KEY = 'bpmf_google_config';
@@ -37,7 +45,7 @@ const formatRemaining = (ms) => {
   return `剩 ${minutes} 分鐘`;
 };
 
-function Settings() {
+function Settings({ onSyncChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const [clientId, setClientId] = useState('');
   const [savedClientId, setSavedClientId] = useState('');
@@ -46,6 +54,9 @@ function Settings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => Date.now());
+  const [unsyncedCount, setUnsyncedCount] = useState(0);
+  const [exportCount, setExportCount] = useState(0);
+  const [syncNote, setSyncNote] = useState('');
   const { requestChoice, pickerElement } = useSheetPicker();
 
   useEffect(() => {
@@ -58,10 +69,27 @@ function Settings() {
     setError('');
     setBusy(false);
     setNow(Date.now());
+    setUnsyncedCount(getUnsynced().length);
+    setExportCount(getExportableCount());
+    setSyncNote('');
 
     const id = setInterval(() => setNow(Date.now()), 10_000);
     return () => clearInterval(id);
   }, [isOpen]);
+
+  // Push any locally-unsynced records, then refresh the pending count and note.
+  const runResync = async () => {
+    const { failed, synced } = await resyncUnsynced();
+    setUnsyncedCount(getUnsynced().length);
+    if (failed > 0) {
+      setSyncNote(`⚠ 仍有 ${failed} 筆未同步`);
+    } else if (synced > 0) {
+      setSyncNote(`✅ 已補傳 ${synced} 筆`);
+    }
+    // Notify the parent so the finish-screen sync status recomputes and drops
+    // its stale "重新連結並補傳全部" prompt.
+    if (synced > 0) onSyncChange?.();
+  };
 
   const dirty = clientId.trim() !== savedClientId;
   const connected = sessionMatchesClientId(session, savedClientId);
@@ -91,9 +119,11 @@ function Settings() {
   const handleConnect = async () => {
     setBusy(true);
     setError('');
+    setSyncNote('');
     try {
       const newSession = await connect({ onMultiple: requestChoice });
       setSession(newSession);
+      await runResync(); // backfill any unsynced records with the fresh token
     } catch (e) {
       setError(e.message || '連結失敗');
     } finally {
@@ -104,15 +134,32 @@ function Settings() {
   const handleRefresh = async () => {
     setBusy(true);
     setError('');
+    setSyncNote('');
     try {
       const refreshed = await refreshSession();
       setSession(refreshed);
       setNow(Date.now());
+      await runResync(); // backfill any unsynced records with the fresh token
     } catch (e) {
       setError(e.message || '更新失敗，請改用「重新連結」');
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleResync = async () => {
+    setBusy(true);
+    setError('');
+    setSyncNote('');
+    try {
+      await runResync();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleExport = () => {
+    exportRecordsToCsv();
   };
 
   const handleDisconnect = async () => {
@@ -289,6 +336,22 @@ function Settings() {
                         {busy ? '處理中…' : '中斷連結'}
                       </button>
                     </div>
+                    {unsyncedCount > 0 && (
+                      <div className="settings-unsynced">
+                        <span>
+                          ⚠ 有 {unsyncedCount} 筆未同步（資料已存於本地）
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleResync}
+                          className="dialog-button confirm"
+                          disabled={busy}
+                        >
+                          {busy ? '補傳中…' : '補傳未同步'}
+                        </button>
+                      </div>
+                    )}
+                    {syncNote && <p className="settings-sync-note">{syncNote}</p>}
                   </div>
                 ) : (
                   <button
@@ -303,6 +366,21 @@ function Settings() {
                 {error && <p className="settings-error">{error}</p>}
               </section>
             )}
+
+            <section className="settings-section">
+              <h3 className="settings-section-title">本地資料</h3>
+              <p className="settings-description">
+                把所有練習紀錄（含未同步）匯出成 CSV，不需連結 Google。
+              </p>
+              <button
+                type="button"
+                onClick={handleExport}
+                className="dialog-button confirm"
+                disabled={exportCount === 0}
+              >
+                ⬇ 匯出 CSV{exportCount > 0 ? `（${exportCount} 筆）` : ''}
+              </button>
+            </section>
 
             <div className="dialog-buttons">
               <button onClick={() => setIsOpen(false)} className="dialog-button cancel">

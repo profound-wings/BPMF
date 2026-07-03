@@ -866,6 +866,26 @@ hr {
   color: #2aa198;
 }
 
+.settings-unsynced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: #b58900;
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.settings-unsynced .dialog-button {
+  align-self: flex-start;
+}
+
+.settings-sync-note {
+  font-size: 14px;
+  color: #93a1a1;
+  margin: 0;
+  font-family: 'Noto Sans', sans-serif;
+}
+
 .settings-connected--expired {
   background-color: rgba(220, 50, 47, 0.12);
   border-color: #dc322f;

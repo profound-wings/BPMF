@@ -1,11 +1,12 @@
 import { getGoogleClientId } from './Settings';
+import { getUnsynced, markSynced } from './syncLog';
 
 const SESSION_KEY = 'bpmf_google_session';
 const SCOPE =
   'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email';
 const SPREADSHEET_TITLE = 'BPMF 練習紀錄';
 export const TOKEN_REFRESH_BUFFER_MS = 60_000;
-const HEADER_ROW = [
+export const HEADER_ROW = [
   '開始時間',
   '完成時間',
   '故事',
@@ -16,6 +17,21 @@ const HEADER_ROW = [
   '提示次數',
   '答錯字',
   '用提示字',
+];
+
+// Map a completion record to a row aligned with HEADER_ROW. Shared by the
+// Sheets upload and the local CSV export so both stay in sync.
+export const recordToRow = (record) => [
+  record.startedAt,
+  record.completedAt,
+  record.textKey,
+  record.earnedScore,
+  record.score,
+  record.charCount,
+  record.accuracy,
+  record.hintCount,
+  record.wrongChars.join(''),
+  record.hintUsedChars.join(''),
 ];
 
 export const readSession = () => {
@@ -326,18 +342,7 @@ export const appendCompletion = async (record) => {
 
   await ensureHeaderRow(token, session.spreadsheetId);
 
-  const row = [
-    record.startedAt,
-    record.completedAt,
-    record.textKey,
-    record.earnedScore,
-    record.score,
-    record.charCount,
-    record.accuracy,
-    record.hintCount,
-    record.wrongChars.join(''),
-    record.hintUsedChars.join(''),
-  ];
+  const row = recordToRow(record);
 
   const resp = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(session.spreadsheetId)}/values/A1:J1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
@@ -365,4 +370,25 @@ export const getValidAccessToken = async () => {
     return session.accessToken;
   }
   return null;
+};
+
+// Attempt to upload every locally-unsynced record, oldest first. A record that
+// uploads successfully is marked synced; skips/errors are counted as failures
+// (the local copy stays unsynced for a later retry). Returns a summary.
+export const resyncUnsynced = async () => {
+  const unsynced = getUnsynced();
+  let failed = 0;
+  for (const entry of unsynced) {
+    try {
+      const result = await appendCompletion(entry.record);
+      if (result.skipped) {
+        failed += 1;
+      } else {
+        markSynced(entry.id);
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+  return { total: unsynced.length, failed, synced: unsynced.length - failed };
 };

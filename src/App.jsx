@@ -3,7 +3,7 @@ import './Fonts.css';
 import './App.css';
 import { allTexts } from './texts';
 import Settings from './Settings';
-import { appendCompletion, connect } from './google';
+import { appendCompletion, connect, resyncUnsynced } from './google';
 import { appendSyncLog, markSynced, getUnsynced } from './syncLog';
 import { useSheetPicker } from './SheetPicker';
 
@@ -285,20 +285,7 @@ function App() {
     setSyncError('');
     try {
       await connect({ onMultiple: requestChoice });
-      const unsynced = getUnsynced();
-      let failed = 0;
-      for (const entry of unsynced) {
-        try {
-          const result = await appendCompletion(entry.record);
-          if (result.skipped) {
-            failed += 1;
-          } else {
-            markSynced(entry.id);
-          }
-        } catch {
-          failed += 1;
-        }
-      }
+      const { failed } = await resyncUnsynced();
       if (failed > 0) {
         setSyncStatus('error');
         setSyncError(`仍有 ${failed} 筆未同步`);
@@ -529,7 +516,7 @@ function App() {
 
   return (
     <div className="App">
-      <Settings />
+      <Settings onSyncChange={() => setStorageVersion((v) => v + 1)} />
       {pickerElement}
 
       {/* Confirmation Dialog */}
