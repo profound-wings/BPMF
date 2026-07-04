@@ -94,12 +94,10 @@ describe('sendRecord', () => {
     expect(res).toEqual({ skipped: true, reason: 'not_configured' });
   });
 
-  it('POSTs text/plain with jwt+record and returns not-skipped on ok', async () => {
+  it('POSTs a no-cors text/plain request with jwt+record and returns not-skipped', async () => {
     setAppsScriptConfig({ url: 'https://x', secret: 's', childName: '小明' });
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ ok: true }),
-    });
+    // no-cors responses are opaque; a resolved fetch is the success signal.
+    const fetchMock = vi.fn().mockResolvedValue({ type: 'opaque', status: 0 });
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await sendRecord(sample);
@@ -108,19 +106,17 @@ describe('sendRecord', () => {
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toBe('https://x');
     expect(opts.method).toBe('POST');
+    expect(opts.mode).toBe('no-cors');
     expect(opts.headers['Content-Type']).toBe('text/plain');
     const body = JSON.parse(opts.body);
     expect(typeof body.jwt).toBe('string');
     expect(body.record).toEqual(sample);
   });
 
-  it('returns server_error when response ok:false', async () => {
+  it('returns network_error when the fetch throws', async () => {
     setAppsScriptConfig({ url: 'https://x', secret: 's', childName: '小明' });
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: false, error: 'bad sig' }) })
-    );
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     const res = await sendRecord(sample);
-    expect(res).toEqual({ skipped: true, reason: 'server_error', detail: 'bad sig' });
+    expect(res).toEqual({ skipped: true, reason: 'network_error', detail: 'offline' });
   });
 });

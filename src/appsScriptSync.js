@@ -118,25 +118,22 @@ export const sendRecord = async (record) => {
     return { skipped: true, reason: 'not_configured' };
   }
   const jwt = await buildJwt(record, config);
-  let resp;
   try {
-    resp = await fetch(config.url, {
+    // Apps Script Web App responses carry no CORS headers, so a normal (cors)
+    // fetch can't read the reply and would throw even on success. We send a
+    // no-cors simple request: the POST still reaches the server and writes the
+    // row, but the response is opaque — a resolved fetch is our only success
+    // signal. We therefore can't detect a server-side rejection here (bad
+    // secret / expired / hash mismatch); those are logged on the Apps Script
+    // side (console.warn/error) and surface as a missing row in the sheet.
+    await fetch(config.url, {
       method: 'POST',
+      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ jwt, record }),
     });
+    return { skipped: false };
   } catch (error) {
     return { skipped: true, reason: 'network_error', detail: error.message };
   }
-  if (!resp.ok) {
-    return { skipped: true, reason: 'http_error', detail: `HTTP ${resp.status}` };
-  }
-  let data;
-  try {
-    data = await resp.json();
-  } catch {
-    return { skipped: true, reason: 'bad_response' };
-  }
-  if (data && data.ok) return { skipped: false };
-  return { skipped: true, reason: 'server_error', detail: data?.error || '未知錯誤' };
 };

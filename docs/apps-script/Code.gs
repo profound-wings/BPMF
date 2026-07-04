@@ -13,27 +13,39 @@ function doPost(e) {
     const jwt = body.jwt;
     const record = body.record;
     const secret = PropertiesService.getScriptProperties().getProperty('SECRET');
-    if (!secret) return json_({ ok: false, error: '伺服器未設定 SECRET' });
+    if (!secret) return reject_('伺服器未設定 SECRET');
 
     const payload = verifyJwt_(jwt, secret);
-    if (!payload) return json_({ ok: false, error: '簽章無效' });
+    if (!payload) return reject_('簽章無效');
 
     const now = Math.floor(Date.now() / 1000);
     if (typeof payload.exp !== 'number' || payload.exp < now) {
-      return json_({ ok: false, error: 'JWT 已過期' });
+      return reject_('JWT 已過期');
     }
 
     const bh = sha256B64url_(stableStringify_(record));
-    if (bh !== payload.bh) return json_({ ok: false, error: 'record 雜湊不符' });
+    if (bh !== payload.bh) return reject_('record 雜湊不符');
 
     const child = String(payload.child || '').trim();
-    if (!child) return json_({ ok: false, error: '缺少 child' });
+    if (!child) return reject_('缺少 child');
 
     appendToChildSheet_(child, recordToRow_(record));
     return json_({ ok: true });
   } catch (err) {
+    // Log so exceptions (e.g. appendToChildSheet_ failing) are visible in the
+    // Apps Script「執行項目 / Cloud 記錄」dashboard — the caught error is
+    // otherwise invisible (run shows "completed", and the browser can't read
+    // the response due to missing CORS headers).
+    console.error('doPost 例外：' + (err && err.stack ? err.stack : String(err)));
     return json_({ ok: false, error: String(err) });
   }
+}
+
+// A validation refusal: log it (visible in the Executions dashboard) and
+// return the error to the caller.
+function reject_(message) {
+  console.warn('拒絕寫入：' + message);
+  return json_({ ok: false, error: message });
 }
 
 function verifyJwt_(jwt, secret) {
