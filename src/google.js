@@ -1,5 +1,4 @@
 import { getGoogleClientId } from './Settings';
-import { getUnsynced, markSynced } from './syncLog';
 import { HEADER_ROW, recordToRow } from './sheetFormat';
 export { HEADER_ROW, recordToRow };
 
@@ -351,25 +350,4 @@ export const getValidAccessToken = async () => {
     return session.accessToken;
   }
   return null;
-};
-
-// Attempt to upload every locally-unsynced record, oldest first. A record that
-// uploads successfully is marked synced; skips/errors are counted as failures
-// (the local copy stays unsynced for a later retry). Returns a summary.
-export const resyncUnsynced = async () => {
-  const unsynced = getUnsynced();
-  let failed = 0;
-  for (const entry of unsynced) {
-    try {
-      const result = await appendCompletion(entry.record);
-      if (result.skipped) {
-        failed += 1;
-      } else {
-        markSynced(entry.id);
-      }
-    } catch {
-      failed += 1;
-    }
-  }
-  return { total: unsynced.length, failed, synced: unsynced.length - failed };
 };

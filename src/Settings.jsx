@@ -4,11 +4,16 @@ import {
   disconnect,
   readSession,
   refreshSession,
-  resyncUnsynced,
 } from './google';
-import { getUnsynced } from './syncLog';
 import { exportRecordsToCsv, getExportableCount } from './csv';
 import { useSheetPicker } from './SheetPicker';
+import {
+  getAppsScriptConfig,
+  setAppsScriptConfig,
+  hasAppsScriptConfig,
+  generateSecret,
+} from './appsScriptSync';
+import { resyncAll, pendingCount } from './sync';
 
 const CONFIG_KEY = 'bpmf_google_config';
 
@@ -57,6 +62,12 @@ function Settings({ onSyncChange }) {
   const [unsyncedCount, setUnsyncedCount] = useState(0);
   const [exportCount, setExportCount] = useState(0);
   const [syncNote, setSyncNote] = useState('');
+  const [activeTab, setActiveTab] = useState('oauth'); // 'oauth' | 'appsscript' | 'local'
+  const [asUrl, setAsUrl] = useState('');
+  const [asSecret, setAsSecret] = useState('');
+  const [asChild, setAsChild] = useState('');
+  const [asSaved, setAsSaved] = useState(false);
+  const [asPending, setAsPending] = useState(0);
   const { requestChoice, pickerElement } = useSheetPicker();
 
   useEffect(() => {
@@ -69,9 +80,17 @@ function Settings({ onSyncChange }) {
     setError('');
     setBusy(false);
     setNow(Date.now());
-    setUnsyncedCount(getUnsynced().length);
+    setUnsyncedCount(pendingCount());
     setExportCount(getExportableCount());
     setSyncNote('');
+
+    const asCfg = getAppsScriptConfig();
+    setAsUrl(asCfg.url);
+    setAsSecret(asCfg.secret);
+    setAsChild(asCfg.childName);
+    setAsSaved(hasAppsScriptConfig());
+    setAsPending(pendingCount());
+    setActiveTab('oauth');
 
     const id = setInterval(() => setNow(Date.now()), 10_000);
     return () => clearInterval(id);
@@ -79,8 +98,8 @@ function Settings({ onSyncChange }) {
 
   // Push any locally-unsynced records, then refresh the pending count and note.
   const runResync = async () => {
-    const { failed, synced } = await resyncUnsynced();
-    setUnsyncedCount(getUnsynced().length);
+    const { failed, synced } = await resyncAll();
+    setUnsyncedCount(pendingCount());
     if (failed > 0) {
       setSyncNote(`⚠ 仍有 ${failed} 筆未同步`);
     } else if (synced > 0) {
@@ -89,6 +108,33 @@ function Settings({ onSyncChange }) {
     // Notify the parent so the finish-screen sync status recomputes and drops
     // its stale "重新連結並補傳全部" prompt.
     if (synced > 0) onSyncChange?.();
+  };
+
+  const handleAsSave = () => {
+    setAppsScriptConfig({ url: asUrl, secret: asSecret, childName: asChild });
+    setAsSaved(hasAppsScriptConfig());
+    setAsPending(pendingCount());
+  };
+
+  const handleAsGenerate = () => {
+    setAsSecret(generateSecret());
+  };
+
+  const handleAsResync = async () => {
+    setBusy(true);
+    setSyncNote('');
+    try {
+      const { failed, synced } = await resyncAll();
+      setAsPending(pendingCount());
+      setUnsyncedCount(pendingCount());
+      if (failed > 0) setSyncNote(`⚠ 仍有 ${failed} 筆未同步`);
+      else if (synced > 0) {
+        setSyncNote(`✅ 已補傳 ${synced} 筆`);
+        onSyncChange?.();
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const dirty = clientId.trim() !== savedClientId;
@@ -194,6 +240,29 @@ function Settings({ onSyncChange }) {
           >
             <h2 className="settings-title">設定</h2>
 
+            <div className="settings-tabs">
+              <button
+                className={`settings-tab ${activeTab === 'oauth' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('oauth')}
+              >
+                Google OAuth
+              </button>
+              <button
+                className={`settings-tab ${activeTab === 'appsscript' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('appsscript')}
+              >
+                Apps Script 同步
+              </button>
+              <button
+                className={`settings-tab ${activeTab === 'local' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('local')}
+              >
+                本地資料
+              </button>
+            </div>
+
+            {activeTab === 'oauth' && (
+              <>
             <section className="settings-section">
               <h3 className="settings-section-title">Google Sheets 同步</h3>
               <p className="settings-description">
@@ -366,7 +435,85 @@ function Settings({ onSyncChange }) {
                 {error && <p className="settings-error">{error}</p>}
               </section>
             )}
+              </>
+            )}
 
+            {activeTab === 'appsscript' && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Apps Script 同步</h3>
+                <p className="settings-description">
+                  兒童裝置不需登入 Google。由家長部署一個 Apps Script Web App，資料以你的身分寫入試算表。多個小孩會各自寫進以小孩名為名的分頁。
+                </p>
+
+                <label className="settings-label">
+                  Web App URL
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={asUrl}
+                    onChange={(e) => setAsUrl(e.target.value)}
+                    placeholder="https://script.google.com/macros/s/..../exec"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </label>
+
+                <label className="settings-label">
+                  Secret
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={asSecret}
+                    onChange={(e) => setAsSecret(e.target.value)}
+                    placeholder="按「產生 secret」或貼上"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </label>
+                <button type="button" className="settings-help-toggle" onClick={handleAsGenerate}>
+                  🔑 產生 secret
+                </button>
+
+                <label className="settings-label">
+                  這台裝置的小孩名
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={asChild}
+                    onChange={(e) => setAsChild(e.target.value)}
+                    placeholder="例如：小明"
+                    autoComplete="off"
+                  />
+                </label>
+
+                <div className="settings-inline-buttons">
+                  <button type="button" onClick={handleAsSave} className="dialog-button confirm">
+                    儲存
+                  </button>
+                </div>
+
+                {asSaved && asPending > 0 && (
+                  <div className="settings-unsynced">
+                    <span>⚠ 有 {asPending} 筆未同步（資料已存於本地）</span>
+                    <button
+                      type="button"
+                      onClick={handleAsResync}
+                      className="dialog-button confirm"
+                      disabled={busy}
+                    >
+                      {busy ? '補傳中…' : '補傳未同步'}
+                    </button>
+                  </div>
+                )}
+                {syncNote && <p className="settings-sync-note">{syncNote}</p>}
+
+                <p className="settings-description" style={{ marginTop: '1rem' }}>
+                  部署步驟與 Code.gs 請見專案的 <code className="settings-code">docs/apps-script/</code>。secret 要和 Apps Script 的指令碼屬性 SECRET 一致。
+                </p>
+              </section>
+            )}
+
+            {activeTab === 'local' && (
             <section className="settings-section">
               <h3 className="settings-section-title">本地資料</h3>
               <p className="settings-description">
@@ -381,6 +528,7 @@ function Settings({ onSyncChange }) {
                 ⬇ 匯出 CSV{exportCount > 0 ? `（${exportCount} 筆）` : ''}
               </button>
             </section>
+            )}
 
             <div className="dialog-buttons">
               <button onClick={() => setIsOpen(false)} className="dialog-button cancel">

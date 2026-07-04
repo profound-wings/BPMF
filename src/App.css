@@ -944,3 +944,24 @@ hr {
   background-color: #dc322f;
   border-color: #dc322f;
 }
+
+.settings-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid #073642;
+  margin-bottom: 1rem;
+}
+.settings-tab {
+  flex: 1;
+  padding: 0.5rem 0.25rem;
+  background: transparent;
+  border: none;
+  color: #839496;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 2px solid transparent;
+}
+.settings-tab.is-active {
+  color: #268bd2;
+  border-bottom-color: #268bd2;
+}
