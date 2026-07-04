@@ -965,3 +965,41 @@ hr {
   color: #268bd2;
   border-bottom-color: #268bd2;
 }
+
+/* Apps Script deploy actions + secret copy + help modal */
+.settings-action-link {
+  font-size: 14px;
+  padding: 6px 0;
+  background: transparent;
+  color: #b58900;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'Noto Sans', sans-serif;
+}
+.settings-action-link:hover {
+  color: #cb4b16;
+  background: transparent;
+}
+.settings-deploy-actions {
+  margin-top: 12px;
+}
+.apps-help-overlay {
+  z-index: 1100; /* above the settings dialog (1000) */
+}
+.settings-secret-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.settings-secret-value {
+  flex: 1;
+  background-color: #002b36;
+  color: #eee8d5;
+  padding: 6px 8px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 13px;
+  word-break: break-all;
+}

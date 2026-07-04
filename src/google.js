@@ -1,4 +1,4 @@
-import { getGoogleClientId } from './Settings';
+import { getGoogleClientId } from './settingsConfig';
 import { HEADER_ROW, recordToRow } from './sheetFormat';
 export { HEADER_ROW, recordToRow };
 
