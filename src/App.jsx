@@ -3,8 +3,9 @@ import './Fonts.css';
 import './App.css';
 import { allTexts } from './texts';
 import Settings from './Settings';
-import { appendCompletion, connect, resyncUnsynced } from './google';
-import { appendSyncLog, markSynced, getUnsynced } from './syncLog';
+import { connect } from './google';
+import { appendSyncLog } from './syncLog';
+import { syncRecord, resyncAll, pendingCount as getPendingCount } from './sync';
 import { useSheetPicker } from './SheetPicker';
 
 // Constants
@@ -253,22 +254,15 @@ function App() {
       appendSyncLog(record); // persist locally before attempting upload
       setSyncStatus('syncing');
       setSyncError('');
-      appendCompletion(record)
+      syncRecord(record)
         .then((result) => {
-          if (result.skipped) {
-            if (result.reason === 'not_connected') {
-              setSyncStatus('idle');
-            } else {
-              setSyncStatus('error');
-              setSyncError(
-                result.reason === 'token_unavailable'
-                  ? '連結已過期'
-                  : '帳號連結與目前 Client ID 不符'
-              );
-            }
-          } else {
-            markSynced(record.completedAt);
+          if (result.overall === 'idle') {
+            setSyncStatus('idle');
+          } else if (result.overall === 'success') {
             setSyncStatus('success');
+          } else {
+            setSyncStatus('error');
+            setSyncError(result.error || '同步失敗');
           }
         })
         .catch((err) => {
@@ -285,7 +279,7 @@ function App() {
     setSyncError('');
     try {
       await connect({ onMultiple: requestChoice });
-      const { failed } = await resyncUnsynced();
+      const { failed } = await resyncAll();
       if (failed > 0) {
         setSyncStatus('error');
         setSyncError(`仍有 ${failed} 筆未同步`);
@@ -696,7 +690,7 @@ function App() {
           {(() => {
             // storageVersion is referenced so this recomputes after resync
             void storageVersion;
-            const pendingCount = getUnsynced().length;
+            const pendingCount = getPendingCount();
             if (syncStatus === 'syncing') {
               return <div className="sync-status sync-status--syncing">🔄 同步到 Google Sheet…</div>;
             }
