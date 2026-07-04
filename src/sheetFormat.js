@@ -9,6 +9,8 @@ export const HEADER_ROW = [
   '提示次數',
   '答錯字',
   '用提示字',
+  '暫停次數',
+  '暫停明細',
 ];
 
 // Map a completion record to a row aligned with HEADER_ROW. Shared by the
@@ -25,4 +27,6 @@ export const recordToRow = (record) => [
   record.hintCount,
   record.wrongChars.join(''),
   record.hintUsedChars.join(''),
+  record.pauseCount ?? 0,
+  record.pauseDetails ?? '',
 ];
