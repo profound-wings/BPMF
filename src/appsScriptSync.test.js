@@ -8,6 +8,7 @@ import {
   stableStringify,
   buildJwt,
   sendRecord,
+  sendRecords,
 } from './appsScriptSync';
 
 const b64urlFromBuffer = (buf) =>
@@ -118,5 +119,50 @@ describe('sendRecord', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     const res = await sendRecord(sample);
     expect(res).toEqual({ skipped: true, reason: 'network_error', detail: 'offline' });
+  });
+});
+
+describe('sendRecords (bulk)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('skips when not configured', async () => {
+    const res = await sendRecords([sample]);
+    expect(res).toEqual({ skipped: true, reason: 'not_configured' });
+  });
+
+  it('returns not-skipped for an empty batch without fetching', async () => {
+    setAppsScriptConfig({ url: 'https://x', secret: 's', childName: '小明' });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await sendRecords([]);
+    expect(res).toEqual({ skipped: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends one no-cors request with a records array whose bh covers the batch', async () => {
+    setAppsScriptConfig({ url: 'https://x', secret: 's', childName: '小明' });
+    const fetchMock = vi.fn().mockResolvedValue({ type: 'opaque', status: 0 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const batch = [sample, { ...sample, completedAt: '2026-07-03T00:06:00.000Z' }];
+    const res = await sendRecords(batch);
+    expect(res).toEqual({ skipped: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://x');
+    expect(opts.mode).toBe('no-cors');
+    expect(opts.headers['Content-Type']).toBe('text/plain');
+    const body = JSON.parse(opts.body);
+    expect(body.records).toEqual(batch);
+    expect(typeof body.jwt).toBe('string');
+
+    const payload = JSON.parse(Buffer.from(body.jwt.split('.')[1], 'base64url').toString('utf8'));
+    const expectedBh = b64urlFromBuffer(
+      createHash('sha256').update(stableStringify(batch), 'utf8').digest()
+    );
+    expect(payload.bh).toBe(expectedBh);
   });
 });

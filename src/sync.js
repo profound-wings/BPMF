@@ -1,11 +1,17 @@
 import { appendCompletion, isConfigured as oauthConfigured } from './google';
-import { sendRecord, hasAppsScriptConfig } from './appsScriptSync';
+import { sendRecord, sendRecords, hasAppsScriptConfig } from './appsScriptSync';
 import { markSynced, getUnsyncedFor, getPendingCount } from './syncLog';
 
 // Backend targets in priority order for error reporting: Apps Script first,
-// so its message wins when both fail ("以 Apps Script 為準").
+// so its message wins when both fail ("以 Apps Script 為準"). A target with
+// sendBatch backfills its whole backlog in one request during resync.
 const TARGETS = [
-  { id: 'appsscript', isConfigured: hasAppsScriptConfig, send: sendRecord },
+  {
+    id: 'appsscript',
+    isConfigured: hasAppsScriptConfig,
+    send: sendRecord,
+    sendBatch: sendRecords,
+  },
   { id: 'oauth', isConfigured: oauthConfigured, send: appendCompletion },
 ];
 
@@ -61,19 +67,38 @@ export const resyncAll = async () => {
   let failed = 0;
   const attempted = new Set();
   for (const target of active) {
-    for (const entry of getUnsyncedFor(target.id)) {
-      attempted.add(entry.id);
+    const entries = getUnsyncedFor(target.id);
+    if (entries.length === 0) continue;
+    entries.forEach((e) => attempted.add(e.id));
+
+    if (target.sendBatch) {
+      // Backfill the whole backlog for this target in one request.
       let result;
       try {
-        result = await target.send(entry.record);
+        result = await target.sendBatch(entries.map((e) => e.record));
       } catch {
         result = { skipped: true };
       }
       if (!result.skipped) {
-        markSynced(entry.id, target.id);
-        synced += 1;
+        entries.forEach((e) => markSynced(e.id, target.id));
+        synced += entries.length;
       } else {
-        failed += 1;
+        failed += entries.length;
+      }
+    } else {
+      for (const entry of entries) {
+        let result;
+        try {
+          result = await target.send(entry.record);
+        } catch {
+          result = { skipped: true };
+        }
+        if (!result.skipped) {
+          markSynced(entry.id, target.id);
+          synced += 1;
+        } else {
+          failed += 1;
+        }
       }
     }
   }

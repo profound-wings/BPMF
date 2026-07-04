@@ -6,6 +6,7 @@ vi.mock('./google', () => ({
 }));
 vi.mock('./appsScriptSync', () => ({
   sendRecord: vi.fn(),
+  sendRecords: vi.fn(),
   hasAppsScriptConfig: vi.fn(),
 }));
 vi.mock('./syncLog', () => ({
@@ -15,7 +16,7 @@ vi.mock('./syncLog', () => ({
 }));
 
 import { appendCompletion, isConfigured } from './google';
-import { sendRecord, hasAppsScriptConfig } from './appsScriptSync';
+import { sendRecord, sendRecords, hasAppsScriptConfig } from './appsScriptSync';
 import { markSynced, getUnsyncedFor } from './syncLog';
 import { configuredTargets, syncRecord, resyncAll } from './sync';
 
@@ -69,37 +70,56 @@ describe('syncRecord', () => {
 });
 
 describe('resyncAll', () => {
-  it('retries only missing targets per entry', async () => {
-    isConfigured.mockReturnValue(true);
+  it('backfills the Apps Script backlog in a single bulk request', async () => {
+    const r1 = { completedAt: 'c1' };
+    const r2 = { completedAt: 'c2' };
+    isConfigured.mockReturnValue(false); // oauth off — isolate the batch path
     hasAppsScriptConfig.mockReturnValue(true);
     getUnsyncedFor.mockImplementation((t) =>
-      t === 'appsscript' ? [{ id: 'c1', record }] : []
+      t === 'appsscript'
+        ? [{ id: 'c1', record: r1 }, { id: 'c2', record: r2 }]
+        : []
     );
-    sendRecord.mockResolvedValue({ skipped: false });
+    sendRecords.mockResolvedValue({ skipped: false });
+
+    const res = await resyncAll();
+    // One HTTP call for the whole backlog, not one per record.
+    expect(sendRecords).toHaveBeenCalledTimes(1);
+    expect(sendRecords).toHaveBeenCalledWith([r1, r2]);
+    expect(sendRecord).not.toHaveBeenCalled();
+    expect(res.total).toBe(2);
+    expect(res.synced).toBe(2);
+    expect(res.failed).toBe(0);
+    expect(markSynced).toHaveBeenCalledWith('c1', 'appsscript');
+    expect(markSynced).toHaveBeenCalledWith('c2', 'appsscript');
+  });
+
+  it('counts the whole batch as failed and marks none when the bulk send is skipped', async () => {
+    isConfigured.mockReturnValue(false);
+    hasAppsScriptConfig.mockReturnValue(true);
+    getUnsyncedFor.mockImplementation((t) =>
+      t === 'appsscript' ? [{ id: 'c1', record }, { id: 'c2', record }] : []
+    );
+    sendRecords.mockResolvedValue({ skipped: true, reason: 'network_error' });
+
+    const res = await resyncAll();
+    expect(res.synced).toBe(0);
+    expect(res.failed).toBe(2);
+    expect(markSynced).not.toHaveBeenCalled();
+  });
+
+  it('still retries oauth per-record (no batch support)', async () => {
+    isConfigured.mockReturnValue(true);
+    hasAppsScriptConfig.mockReturnValue(false);
+    getUnsyncedFor.mockImplementation((t) =>
+      t === 'oauth' ? [{ id: 'c1', record }] : []
+    );
+    appendCompletion.mockResolvedValue({ skipped: false });
 
     const res = await resyncAll();
     expect(res.synced).toBe(1);
     expect(res.failed).toBe(0);
-    expect(markSynced).toHaveBeenCalledWith('c1', 'appsscript');
-    expect(appendCompletion).not.toHaveBeenCalled();
-  });
-
-  it('counts a partial dual-write success as synced, not purely failed', async () => {
-    // Entry c1 is missing both targets. It succeeds on appsscript but still
-    // fails on oauth. The overall entry count (`total`) should be 1 (one
-    // distinct entry attempted), but `synced` must reflect the one
-    // successful (entry,target) upload rather than being swallowed by the
-    // still-pending oauth target.
-    isConfigured.mockReturnValue(true);
-    hasAppsScriptConfig.mockReturnValue(true);
-    getUnsyncedFor.mockImplementation(() => [{ id: 'c1', record }]);
-    sendRecord.mockResolvedValue({ skipped: false });
-    appendCompletion.mockResolvedValue({ skipped: true, reason: 'token_unavailable' });
-
-    const res = await resyncAll();
-    expect(res.total).toBe(1);
-    expect(res.synced).toBe(1);
-    expect(res.failed).toBe(1);
-    expect(markSynced).toHaveBeenCalledWith('c1', 'appsscript');
+    expect(markSynced).toHaveBeenCalledWith('c1', 'oauth');
+    expect(sendRecords).not.toHaveBeenCalled();
   });
 });

@@ -11,7 +11,6 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     const jwt = body.jwt;
-    const record = body.record;
     const secret = PropertiesService.getScriptProperties().getProperty('SECRET');
     if (!secret) return reject_('伺服器未設定 SECRET');
 
@@ -23,14 +22,23 @@ function doPost(e) {
       return reject_('JWT 已過期');
     }
 
-    const bh = sha256B64url_(stableStringify_(record));
+    // Accept a batch (body.records: array) or a single record (body.record).
+    // The bh in the JWT covers whichever the client sent, so hash the same
+    // shape here. records[] is what actually gets written either way.
+    var bhSource = Array.isArray(body.records) ? body.records : body.record;
+    var records = Array.isArray(body.records)
+      ? body.records
+      : body.record ? [body.record] : [];
+    if (!records.length) return reject_('缺少 record');
+
+    const bh = sha256B64url_(stableStringify_(bhSource));
     if (bh !== payload.bh) return reject_('record 雜湊不符');
 
     const child = String(payload.child || '').trim();
     if (!child) return reject_('缺少 child');
 
-    appendToChildSheet_(child, recordToRow_(record));
-    return json_({ ok: true });
+    appendRowsToChildSheet_(child, records.map(recordToRow_));
+    return json_({ ok: true, written: records.length });
   } catch (err) {
     // Log so exceptions (e.g. appendToChildSheet_ failing) are visible in the
     // Apps Script「執行項目 / Cloud 記錄」dashboard — the caught error is
@@ -58,7 +66,7 @@ function verifyJwt_(jwt, secret) {
   return JSON.parse(b64urlToUtf8_(parts[1]));
 }
 
-function appendToChildSheet_(child, row) {
+function appendRowsToChildSheet_(child, rows) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(child);
   if (!sheet) {
@@ -67,7 +75,9 @@ function appendToChildSheet_(child, row) {
   } else if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADER_ROW);
   }
-  sheet.appendRow(row);
+  if (!rows.length) return;
+  // One block write for the whole batch instead of appendRow per row.
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
 }
 
 function recordToRow_(r) {

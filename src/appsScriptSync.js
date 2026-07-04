@@ -112,28 +112,45 @@ export const buildJwt = async (record, config, opts = {}) => {
   return `${signingInput}.${signature}`;
 };
 
+// POST a signed payload to the Web App. Apps Script responses carry no CORS
+// headers, so a normal (cors) fetch can't read the reply and would throw even
+// on success. We send a no-cors simple request: the POST still reaches the
+// server and writes the row(s), but the response is opaque — a resolved fetch
+// is our only success signal. We therefore can't detect a server-side
+// rejection here (bad secret / expired / hash mismatch); those are logged on
+// the Apps Script side (console.warn/error) and surface as a missing row.
+const postSigned = async (url, body) => {
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body),
+    });
+    return { skipped: false };
+  } catch (error) {
+    return { skipped: true, reason: 'network_error', detail: error.message };
+  }
+};
+
 export const sendRecord = async (record) => {
   const config = getAppsScriptConfig();
   if (!config.url || !config.secret || !config.childName) {
     return { skipped: true, reason: 'not_configured' };
   }
   const jwt = await buildJwt(record, config);
-  try {
-    // Apps Script Web App responses carry no CORS headers, so a normal (cors)
-    // fetch can't read the reply and would throw even on success. We send a
-    // no-cors simple request: the POST still reaches the server and writes the
-    // row, but the response is opaque — a resolved fetch is our only success
-    // signal. We therefore can't detect a server-side rejection here (bad
-    // secret / expired / hash mismatch); those are logged on the Apps Script
-    // side (console.warn/error) and surface as a missing row in the sheet.
-    await fetch(config.url, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ jwt, record }),
-    });
-    return { skipped: false };
-  } catch (error) {
-    return { skipped: true, reason: 'network_error', detail: error.message };
+  return postSigned(config.url, { jwt, record });
+};
+
+// Send many records in one request. The JWT's bh covers the whole array; the
+// Apps Script side appends every row and verifies the batch hash. Used by
+// resync so backfilling N records is one HTTP round trip, not N.
+export const sendRecords = async (records) => {
+  const config = getAppsScriptConfig();
+  if (!config.url || !config.secret || !config.childName) {
+    return { skipped: true, reason: 'not_configured' };
   }
+  if (!records || records.length === 0) return { skipped: false };
+  const jwt = await buildJwt(records, config);
+  return postSigned(config.url, { jwt, records });
 };
