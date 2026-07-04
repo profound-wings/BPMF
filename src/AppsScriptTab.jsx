@@ -81,30 +81,44 @@ function AppsScriptTab({ onSyncChange }) {
       {/* Step 1 — secret */}
       <label className="settings-label">
         1. Secret
-        <input
-          type="text"
-          className="settings-input"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          placeholder="按「產生 secret」或貼上"
-          autoComplete="off"
-          spellCheck={false}
-        />
+        <div className="settings-input-row">
+          <input
+            type="text"
+            className="settings-input"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder="按「產生」或貼上"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button type="button" className="dialog-button confirm" onClick={handleGenerate}>
+            🔑 產生
+          </button>
+          <button
+            type="button"
+            className="dialog-button cancel"
+            onClick={handleCopySecret}
+            disabled={!hasSecret}
+          >
+            {secretCopied ? '已複製 ✓' : '複製'}
+          </button>
+        </div>
       </label>
-      <button type="button" className="settings-action-link" onClick={handleGenerate}>
-        🔑 產生 secret
-      </button>
 
       {hasSecret && (
         <>
-          {/* Step 2 — download + deploy steps, collapsed by default */}
-          <button
-            type="button"
-            className="settings-help-toggle"
-            onClick={() => setShowDeploy((v) => !v)}
-          >
-            {showDeploy ? '▼' : '▶'} 2. 下載 Code.gs 與部署說明
-          </button>
+          {/* Step 2 — same labeled format as the others; the expand/collapse
+              toggle sits at the end of the block as its control. */}
+          <div className="settings-label">
+            2. 下載 Code.gs 與部署說明
+            <button
+              type="button"
+              className="settings-help-toggle"
+              onClick={() => setShowDeploy((v) => !v)}
+            >
+              {showDeploy ? '▼ 收合' : '▶ 展開'}
+            </button>
+          </div>
 
           {showDeploy && (
             <div className="settings-deploy-block">
@@ -123,17 +137,7 @@ function AppsScriptTab({ onSyncChange }) {
                 <li>按上方「下載 Code.gs」，把檔案內容整份貼進編輯器，儲存。</li>
                 <li>
                   左側「專案設定 ⚙ → 指令碼屬性」新增一筆：屬性名稱填{' '}
-                  <code className="settings-code">SECRET</code>，值填下面這個 secret：
-                  <div className="settings-secret-box">
-                    <code className="settings-secret-value">{secret}</code>
-                    <button
-                      type="button"
-                      onClick={handleCopySecret}
-                      className="dialog-button confirm"
-                    >
-                      {secretCopied ? '已複製 ✓' : '複製'}
-                    </button>
-                  </div>
+                  <code className="settings-code">SECRET</code>，值填上面第 1 步的 secret（用「複製」鍵複製）。
                 </li>
                 <li>
                   右上「部署 → 新增部署作業 → 類型選『網頁應用程式』」：執行身分選「我」、誰可以存取選「任何人」。

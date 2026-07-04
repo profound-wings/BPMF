@@ -966,40 +966,44 @@ hr {
   border-bottom-color: #268bd2;
 }
 
-/* Apps Script deploy: generate-secret link, collapsible deploy block, secret copy */
-.settings-action-link {
-  font-size: 14px;
-  padding: 6px 0;
-  background: transparent;
-  color: #b58900;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  font-family: 'Noto Sans', sans-serif;
+/* Apps Script deploy: inline secret generate, collapsible deploy block, secret copy */
+/* Bootstrap-style input group: input + attached button, joined edges, equal height. */
+.settings-input-row {
+  display: flex;
+  align-items: stretch;
 }
-.settings-action-link:hover {
-  color: #cb4b16;
-  background: transparent;
+.settings-input-row .settings-input,
+.settings-input-row .dialog-button {
+  height: 44px;
+  box-sizing: border-box;
+}
+.settings-input-row .settings-input {
+  flex: 1;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+.settings-input-row .dialog-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  padding: 0 16px;
+  border-radius: 0;
+  white-space: nowrap;
+}
+.settings-input-row .dialog-button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+/* Copy button: fixed width so the "複製" ↔ "已複製 ✓" label swap never
+   resizes the button (which would jog the input width). */
+.settings-input-row .dialog-button.cancel {
+  min-width: 6em;
 }
 .settings-deploy-block {
   margin: 8px 0 4px 0;
   padding: 10px 12px;
   border: 1px solid #073642;
   border-radius: 4px;
-}
-.settings-secret-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-}
-.settings-secret-value {
-  flex: 1;
-  background-color: #002b36;
-  color: #eee8d5;
-  padding: 6px 8px;
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 13px;
-  word-break: break-all;
 }
