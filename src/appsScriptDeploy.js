@@ -15,5 +15,6 @@ export const downloadCodeGs = () => {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Defer revoke so the download has started before the blob URL is freed.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };

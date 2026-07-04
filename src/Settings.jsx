@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react';
 import OAuthTab from './OAuthTab';
 import AppsScriptTab from './AppsScriptTab';
 import LocalDataTab from './LocalDataTab';
+import { useSheetPicker } from './SheetPicker';
 
 // Settings dialog shell: the gear button, open/close, and the tab bar. Each tab
 // is a self-contained component that owns its own state and loads on mount.
 function Settings({ onSyncChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('oauth'); // 'oauth' | 'appsscript' | 'local'
+  // Owned here (not inside OAuthTab) so the picker dialog survives a tab switch
+  // while an OAuth connect() is awaiting a spreadsheet choice.
+  const { requestChoice, pickerElement } = useSheetPicker();
 
   useEffect(() => {
     if (isOpen) setActiveTab('oauth');
@@ -23,6 +27,8 @@ function Settings({ onSyncChange }) {
       >
         ⚙
       </button>
+
+      {pickerElement}
 
       {isOpen && (
         <div className="dialog-overlay" onClick={() => setIsOpen(false)}>
@@ -53,7 +59,9 @@ function Settings({ onSyncChange }) {
               </button>
             </div>
 
-            {activeTab === 'oauth' && <OAuthTab onSyncChange={onSyncChange} />}
+            {activeTab === 'oauth' && (
+              <OAuthTab onSyncChange={onSyncChange} requestChoice={requestChoice} />
+            )}
             {activeTab === 'appsscript' && <AppsScriptTab onSyncChange={onSyncChange} />}
             {activeTab === 'local' && <LocalDataTab />}
 

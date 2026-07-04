@@ -24,5 +24,3 @@ export const getGoogleClientId = () => {
   const id = readConfig().clientId;
   return typeof id === 'string' ? id.trim() : '';
 };
-
-export const hasGoogleClientId = () => Boolean(getGoogleClientId());

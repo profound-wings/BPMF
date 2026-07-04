@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { connect, disconnect, readSession, refreshSession } from './google';
 import { getGoogleClientId, writeConfig } from './settingsConfig';
 import { resyncAll, pendingCount } from './sync';
-import { useSheetPicker } from './SheetPicker';
 
 const sessionMatchesClientId = (session, clientId) =>
   Boolean(session && session.clientId === clientId && session.spreadsheetId);
@@ -14,7 +13,9 @@ const formatRemaining = (ms) => {
 };
 
 // Google OAuth sync tab: Client ID entry + account link/refresh/disconnect.
-function OAuthTab({ onSyncChange }) {
+// requestChoice comes from the sheet picker owned by Settings, so its dialog
+// outlives a tab switch during a pending connect().
+function OAuthTab({ onSyncChange, requestChoice }) {
   const [clientId, setClientId] = useState('');
   const [savedClientId, setSavedClientId] = useState('');
   const [showHelp, setShowHelp] = useState(false);
@@ -24,7 +25,6 @@ function OAuthTab({ onSyncChange }) {
   const [now, setNow] = useState(() => Date.now());
   const [unsyncedCount, setUnsyncedCount] = useState(0);
   const [syncNote, setSyncNote] = useState('');
-  const { requestChoice, pickerElement } = useSheetPicker();
 
   useEffect(() => {
     const current = getGoogleClientId();
@@ -127,8 +127,6 @@ function OAuthTab({ onSyncChange }) {
 
   return (
     <>
-      {pickerElement}
-
       <section className="settings-section">
         <h3 className="settings-section-title">Google Sheets 同步</h3>
         <p className="settings-description">
