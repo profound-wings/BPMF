@@ -966,7 +966,7 @@ hr {
   border-bottom-color: #268bd2;
 }
 
-/* Apps Script deploy actions + secret copy + help modal */
+/* Apps Script deploy: generate-secret link, collapsible deploy block, secret copy */
 .settings-action-link {
   font-size: 14px;
   padding: 6px 0;
@@ -981,11 +981,11 @@ hr {
   color: #cb4b16;
   background: transparent;
 }
-.settings-deploy-actions {
-  margin-top: 12px;
-}
-.apps-help-overlay {
-  z-index: 1100; /* above the settings dialog (1000) */
+.settings-deploy-block {
+  margin: 8px 0 4px 0;
+  padding: 10px 12px;
+  border: 1px solid #073642;
+  border-radius: 4px;
 }
 .settings-secret-box {
   display: flex;
