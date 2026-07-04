@@ -1,38 +1,13 @@
 import { getGoogleClientId } from './Settings';
 import { getUnsynced, markSynced } from './syncLog';
+import { HEADER_ROW, recordToRow } from './sheetFormat';
+export { HEADER_ROW, recordToRow };
 
 const SESSION_KEY = 'bpmf_google_session';
 const SCOPE =
   'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email';
 const SPREADSHEET_TITLE = 'BPMF 練習紀錄';
 export const TOKEN_REFRESH_BUFFER_MS = 60_000;
-export const HEADER_ROW = [
-  '開始時間',
-  '完成時間',
-  '故事',
-  '得分',
-  '答對',
-  '字數',
-  '答對率(%)',
-  '提示次數',
-  '答錯字',
-  '用提示字',
-];
-
-// Map a completion record to a row aligned with HEADER_ROW. Shared by the
-// Sheets upload and the local CSV export so both stay in sync.
-export const recordToRow = (record) => [
-  record.startedAt,
-  record.completedAt,
-  record.textKey,
-  record.earnedScore,
-  record.score,
-  record.charCount,
-  record.accuracy,
-  record.hintCount,
-  record.wrongChars.join(''),
-  record.hintUsedChars.join(''),
-];
 
 export const readSession = () => {
   try {

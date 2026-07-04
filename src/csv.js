@@ -1,5 +1,5 @@
 import { getAllSyncRecords } from './syncLog';
-import { HEADER_ROW, recordToRow } from './google';
+import { HEADER_ROW, recordToRow } from './sheetFormat';
 
 // Quote a single CSV field when it contains a delimiter, quote, or newline,
 // escaping embedded double-quotes per RFC 4180.
