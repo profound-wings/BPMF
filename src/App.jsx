@@ -5,7 +5,7 @@ import { allTexts } from './texts';
 import Settings from './Settings';
 import { connect } from './google';
 import { appendSyncLog } from './syncLog';
-import { syncRecord, resyncAll, pendingCount as getPendingCount } from './sync';
+import { syncRecord, resyncAll, pendingCount as getPendingCount, configuredTargets } from './sync';
 import { useSheetPicker } from './SheetPicker';
 
 // Constants
@@ -278,7 +278,10 @@ function App() {
     setSyncStatus('syncing');
     setSyncError('');
     try {
-      await connect({ onMultiple: requestChoice });
+      const useOauth = configuredTargets().includes('oauth');
+      if (useOauth) {
+        await connect({ onMultiple: requestChoice });
+      }
       const { failed } = await resyncAll();
       if (failed > 0) {
         setSyncStatus('error');

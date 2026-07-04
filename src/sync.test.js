@@ -83,4 +83,23 @@ describe('resyncAll', () => {
     expect(markSynced).toHaveBeenCalledWith('c1', 'appsscript');
     expect(appendCompletion).not.toHaveBeenCalled();
   });
+
+  it('counts a partial dual-write success as synced, not purely failed', async () => {
+    // Entry c1 is missing both targets. It succeeds on appsscript but still
+    // fails on oauth. The overall entry count (`total`) should be 1 (one
+    // distinct entry attempted), but `synced` must reflect the one
+    // successful (entry,target) upload rather than being swallowed by the
+    // still-pending oauth target.
+    isConfigured.mockReturnValue(true);
+    hasAppsScriptConfig.mockReturnValue(true);
+    getUnsyncedFor.mockImplementation(() => [{ id: 'c1', record }]);
+    sendRecord.mockResolvedValue({ skipped: false });
+    appendCompletion.mockResolvedValue({ skipped: true, reason: 'token_unavailable' });
+
+    const res = await resyncAll();
+    expect(res.total).toBe(1);
+    expect(res.synced).toBe(1);
+    expect(res.failed).toBe(1);
+    expect(markSynced).toHaveBeenCalledWith('c1', 'appsscript');
+  });
 });

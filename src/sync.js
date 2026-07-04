@@ -71,15 +71,13 @@ export const resyncAll = async () => {
       }
       if (!result.skipped) {
         markSynced(entry.id, target.id);
+        synced += 1;
+      } else {
+        failed += 1;
       }
     }
   }
-  // Recompute outcome from remaining pending count over configured targets.
-  const ids = active.map((t) => t.id);
-  const remaining = getPendingCount(ids);
-  synced = attempted.size - remaining;
-  failed = remaining;
-  return { total: attempted.size, synced: Math.max(0, synced), failed };
+  return { total: attempted.size, synced, failed };
 };
 
 export const pendingCount = () => getPendingCount(configuredTargets());
