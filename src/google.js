@@ -337,6 +337,12 @@ export const appendCompletion = async (record) => {
   return { skipped: false };
 };
 
+// True when an OAuth sheet is linked and matches the current Client ID.
+export const isConfigured = () => {
+  const session = readSession();
+  return Boolean(session?.spreadsheetId && session.clientId === getGoogleClientId());
+};
+
 export const getValidAccessToken = async () => {
   const session = readSession();
   if (!session) return null;
