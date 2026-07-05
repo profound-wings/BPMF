@@ -5,6 +5,7 @@
 const HEADER_ROW = [
   '開始時間', '完成時間', '故事', '得分', '答對',
   '字數', '答對率(%)', '提示次數', '答錯字', '用提示字',
+  '暫停次數', '暫停明細',
 ];
 
 function doPost(e) {
@@ -85,6 +86,7 @@ function recordToRow_(r) {
     r.startedAt, r.completedAt, r.textKey, r.earnedScore, r.score,
     r.charCount, r.accuracy, r.hintCount,
     (r.wrongChars || []).join(''), (r.hintUsedChars || []).join(''),
+    r.pauseCount || 0, r.pauseDetails || '',
   ];
 }
 
