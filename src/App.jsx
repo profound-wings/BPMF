@@ -383,6 +383,10 @@ function App() {
           setStartScore(currentScore); // Save score at game start
           setLastEarnedScore(previousScore); // Save previously earned score
           setStartedAt(start);
+          setIsPaused(false);
+          setPauses([]);
+          setPauseStartedAt(null);
+          setPauseReason('');
           setGameStarted(true);
         },
         onCancel: () => {
@@ -406,6 +410,10 @@ function App() {
     setStartScore(currentScore); // Save score at game start
     setLastEarnedScore(previousScore); // Save previously earned score
     setStartedAt(start);
+    setIsPaused(false);
+    setPauses([]);
+    setPauseStartedAt(null);
+    setPauseReason('');
     setGameStarted(true);
   }, [inputText]);
 
@@ -538,7 +546,7 @@ function App() {
   // Keyboard support
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (!gameStarted || !currentWord) return;
+      if (!gameStarted || !currentWord || isPaused) return;
 
       const keyNum = parseInt(event.key, 10);
       if (keyNum >= 1 && keyNum <= choiceOptions.length) {
@@ -548,7 +556,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameStarted, currentWord, choiceOptions, handleWordClick]);
+  }, [gameStarted, currentWord, choiceOptions, handleWordClick, isPaused]);
 
   return (
     <div className="App">
