@@ -199,6 +199,7 @@ function App() {
   const [isPaused, setIsPaused] = useState(false); // Countdown paused (needs reason to resume)
   const [pauses, setPauses] = useState([]); // { reason, pausedAt, durationMs, char } per pause
   const [pauseStartedAt, setPauseStartedAt] = useState(null); // epoch ms when current pause began
+  const [pauseReason, setPauseReason] = useState(''); // Draft reason in the pause overlay
 
   // Sheet picker (for choosing among multiple existing spreadsheets on relink)
   const { requestChoice, pickerElement } = useSheetPicker();
@@ -345,6 +346,7 @@ function App() {
     setIsPaused(false);
     setPauses([]);
     setPauseStartedAt(null);
+    setPauseReason('');
   }, []);
 
   const handleStartGame = useCallback(() => {
@@ -493,6 +495,7 @@ function App() {
       ]);
       setPauseStartedAt(null);
       setIsPaused(false);
+      setPauseReason('');
     },
     [pauseStartedAt, currentWord]
   );
@@ -563,6 +566,32 @@ function App() {
               </button>
               <button onClick={confirmDialog.onCancel} className="dialog-button cancel">
                 取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pause overlay: masks the game; reason required to resume */}
+      {isPaused && (
+        <div className="dialog-overlay">
+          <div className="dialog-box">
+            <p className="dialog-message">已暫停 — 請輸入暫停理由</p>
+            <input
+              type="text"
+              className="pause-reason-input"
+              value={pauseReason}
+              onChange={(e) => setPauseReason(e.target.value)}
+              placeholder="例如：上廁所、喝水"
+              autoFocus
+            />
+            <div className="dialog-buttons">
+              <button
+                onClick={() => handleResume(pauseReason)}
+                className="dialog-button confirm"
+                disabled={!pauseReason.trim()}
+              >
+                繼續
               </button>
             </div>
           </div>
@@ -642,6 +671,13 @@ function App() {
                 <span className="countdown-number" style={{ color }}>
                   ⏱ {Math.ceil(remainingMs / 1000)}
                 </span>
+                <button
+                  type="button"
+                  className="pause-button"
+                  onClick={handlePause}
+                >
+                  ⏸ 暫停
+                </button>
               </div>
             );
           })()}
