@@ -196,6 +196,9 @@ function App() {
   const [syncError, setSyncError] = useState('');
   const [remainingMs, setRemainingMs] = useState(COUNTDOWN_SECONDS * 1000); // Inactivity countdown
   const [startedAt, setStartedAt] = useState(null); // Game start time (ISO)
+  const [isPaused, setIsPaused] = useState(false); // Countdown paused (needs reason to resume)
+  const [pauses, setPauses] = useState([]); // { reason, pausedAt, durationMs, char } per pause
+  const [pauseStartedAt, setPauseStartedAt] = useState(null); // epoch ms when current pause began
 
   // Sheet picker (for choosing among multiple existing spreadsheets on relink)
   const { requestChoice, pickerElement } = useSheetPicker();
@@ -250,6 +253,10 @@ function App() {
         hintCount: hintUsedCount,
         wrongChars,
         hintUsedChars,
+        pauseCount: pauses.length,
+        pauseDetails: pauses
+          .map((p) => `${p.reason}(${Math.round(p.durationMs / 1000)}秒)`)
+          .join('; '),
       };
       appendSyncLog(record); // persist locally before attempting upload
       setSyncStatus('syncing');
@@ -335,6 +342,9 @@ function App() {
     setSyncStatus('idle');
     setSyncError('');
     setStartedAt(null);
+    setIsPaused(false);
+    setPauses([]);
+    setPauseStartedAt(null);
   }, []);
 
   const handleStartGame = useCallback(() => {
@@ -461,11 +471,37 @@ function App() {
     setCurrentCharIndex((prev) => Math.max(0, prev - 1));
   }, []);
 
+  // Pause the inactivity countdown; resume requires a reason and is logged.
+  const handlePause = useCallback(() => {
+    setPauseStartedAt(Date.now());
+    setIsPaused(true);
+  }, []);
+
+  const handleResume = useCallback(
+    (reason) => {
+      const trimmed = reason.trim();
+      if (!trimmed) return;
+      const durationMs = pauseStartedAt ? Date.now() - pauseStartedAt : 0;
+      setPauses((prev) => [
+        ...prev,
+        {
+          reason: trimmed,
+          pausedAt: new Date(pauseStartedAt ?? Date.now()).toISOString(),
+          durationMs,
+          char: currentWord,
+        },
+      ]);
+      setPauseStartedAt(null);
+      setIsPaused(false);
+    },
+    [pauseStartedAt, currentWord]
+  );
+
   // Inactivity countdown: resets on every answer (currentCharIndex / totalAttempts change)
   // and on any click anywhere on the page.
   useEffect(() => {
-    if (!timerActive) {
-      setRemainingMs(COUNTDOWN_SECONDS * 1000);
+    if (!timerActive || isPaused) {
+      if (!timerActive) setRemainingMs(COUNTDOWN_SECONDS * 1000);
       return;
     }
 
@@ -494,7 +530,7 @@ function App() {
       clearInterval(intervalId);
       window.removeEventListener('pointerdown', handleActivity);
     };
-  }, [timerActive, currentCharIndex, totalAttempts, handleTimeout]);
+  }, [timerActive, isPaused, currentCharIndex, totalAttempts, handleTimeout]);
 
   // Keyboard support
   useEffect(() => {
